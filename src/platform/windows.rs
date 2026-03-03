@@ -153,6 +153,8 @@ pub fn read_disk_inventory() -> Result<Vec<RawDiskInventory>> {
         });
     }
 
+    inventory.extend(read_remote_mount_inventory());
+
     let mut children_map: HashMap<String, Vec<String>> = HashMap::new();
     for item in &inventory {
         if let Some(parent) = &item.parent {
@@ -172,6 +174,60 @@ pub fn read_disk_inventory() -> Result<Vec<RawDiskInventory>> {
     }
 
     Ok(inventory)
+}
+
+fn read_remote_mount_inventory() -> Vec<RawDiskInventory> {
+    let values = powershell_json(
+        "$maps = @(); \
+         if (Get-Command Get-SmbMapping -ErrorAction SilentlyContinue) { \
+           $maps += Get-SmbMapping | Select-Object LocalPath,RemotePath,Status; \
+         }; \
+         $maps | ConvertTo-Json -Compress",
+    )
+    .map(json_values)
+    .unwrap_or_default();
+
+    values
+        .into_iter()
+        .filter_map(|value| {
+            let device = json_field_string(&value, "LocalPath")
+                .or_else(|| json_field_string(&value, "RemotePath"))?;
+            let remote = json_field_string(&value, "RemotePath").unwrap_or_default();
+            let label = if remote.is_empty() {
+                device.clone()
+            } else {
+                remote.clone()
+            };
+            Some(RawDiskInventory {
+                device: device.clone(),
+                parent: None,
+                structure: "remote-mount".to_string(),
+                volume_kind: "smb-share".to_string(),
+                filesystem: "smb".to_string(),
+                filesystem_family: "remote".to_string(),
+                label,
+                uuid: String::new(),
+                part_uuid: String::new(),
+                model: String::new(),
+                serial: String::new(),
+                transport: "smb".to_string(),
+                reference: remote,
+                scheduler: String::new(),
+                rotational: None,
+                removable: None,
+                read_only: None,
+                mount_points: vec![device.clone()],
+                logical_stack: vec![if remote.is_empty() {
+                    device.clone()
+                } else {
+                    remote.clone()
+                }],
+                slaves: Vec::new(),
+                holders: Vec::new(),
+                children: Vec::new(),
+            })
+        })
+        .collect()
 }
 
 fn logical_stack_from_map(

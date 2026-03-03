@@ -134,6 +134,8 @@ pub fn read_disk_inventory() -> Result<Vec<RawDiskInventory>> {
         });
     }
 
+    inventory.extend(read_remote_mount_inventory());
+
     let children_by_parent = build_children_map(&inventory);
     let parent_map: HashMap<String, Option<String>> = inventory
         .iter()
@@ -470,6 +472,83 @@ fn build_children_map(items: &[RawDiskInventory]) -> HashMap<String, Vec<String>
         }
     }
     map
+}
+
+fn read_remote_mount_inventory() -> Vec<RawDiskInventory> {
+    let output = match command_output("mount", &[]) {
+        Some(output) => output,
+        None => return Vec::new(),
+    };
+
+    output.lines().filter_map(parse_remote_mount_line).collect()
+}
+
+fn parse_remote_mount_line(line: &str) -> Option<RawDiskInventory> {
+    let (source, rest) = line.split_once(" on ")?;
+    let (mount_point, meta) = rest.split_once(" (")?;
+    let fstype = meta
+        .trim_end_matches(')')
+        .split(',')
+        .next()
+        .map(str::trim)
+        .unwrap_or_default();
+
+    if !is_remote_mount(source, fstype) {
+        return None;
+    }
+
+    Some(RawDiskInventory {
+        device: source.to_string(),
+        parent: None,
+        structure: "remote-mount".to_string(),
+        volume_kind: remote_volume_kind(fstype),
+        filesystem: fstype.to_string(),
+        filesystem_family: "remote".to_string(),
+        label: mount_point.to_string(),
+        uuid: String::new(),
+        part_uuid: String::new(),
+        model: String::new(),
+        serial: String::new(),
+        transport: remote_transport(fstype).to_string(),
+        reference: source.to_string(),
+        scheduler: String::new(),
+        rotational: None,
+        removable: None,
+        read_only: None,
+        mount_points: vec![mount_point.to_string()],
+        logical_stack: vec![source.to_string()],
+        slaves: Vec::new(),
+        holders: Vec::new(),
+        children: Vec::new(),
+    })
+}
+
+fn is_remote_mount(source: &str, fstype: &str) -> bool {
+    matches!(
+        fstype.to_ascii_lowercase().as_str(),
+        "nfs" | "smbfs" | "webdav" | "webdavs" | "afpfs"
+    ) || source.starts_with("//")
+        || source.contains(':')
+}
+
+fn remote_transport(fstype: &str) -> &'static str {
+    match fstype.to_ascii_lowercase().as_str() {
+        "nfs" => "nfs",
+        "smbfs" => "smb",
+        "afpfs" => "afp",
+        "webdav" | "webdavs" => "webdav",
+        _ => "remote",
+    }
+}
+
+fn remote_volume_kind(fstype: &str) -> String {
+    match fstype.to_ascii_lowercase().as_str() {
+        "nfs" => "nfs-share".to_string(),
+        "smbfs" => "smb-share".to_string(),
+        "afpfs" => "afp-share".to_string(),
+        "webdav" | "webdavs" => "webdav-share".to_string(),
+        other => format!("{other}-mount"),
+    }
 }
 
 fn logical_stack_from_map(

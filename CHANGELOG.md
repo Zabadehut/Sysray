@@ -17,6 +17,7 @@ The format is inspired by Keep a Changelog, and this project aims to follow Sema
 - Linux `sysfs` enrichment for scheduler, rotational/removable/read-only flags, and holder/slave links
 - Real README capture for `inventory+`
 - Linux remote filesystem inventory entries for `NFS` / `SMB` / `SSHFS`-style mounts
+- macOS and Windows remote filesystem inventory entries when the OS exposes network share mappings
 
 ### Changed
 
