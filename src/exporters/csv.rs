@@ -165,6 +165,72 @@ impl Exporter for CsvExporter {
                 device,
                 metric_label(&disk.media_hint)
             ));
+            if !disk.volume_kind.is_empty() {
+                out.push_str(&format!(
+                    "{},disk.{}.volume_kind.{},1\n",
+                    snapshot.timestamp,
+                    device,
+                    metric_label(&disk.volume_kind)
+                ));
+            }
+            if !disk.filesystem_family.is_empty() {
+                out.push_str(&format!(
+                    "{},disk.{}.filesystem_family.{},1\n",
+                    snapshot.timestamp,
+                    device,
+                    metric_label(&disk.filesystem_family)
+                ));
+            }
+            if !disk.scheduler.is_empty() {
+                out.push_str(&format!(
+                    "{},disk.{}.scheduler.{},1\n",
+                    snapshot.timestamp,
+                    device,
+                    metric_label(&disk.scheduler)
+                ));
+            }
+            out.push_str(&format!(
+                "{},disk.{}.stack_depth,{}\n",
+                snapshot.timestamp,
+                device,
+                disk.logical_stack.len()
+            ));
+            out.push_str(&format!(
+                "{},disk.{}.children_count,{}\n",
+                snapshot.timestamp,
+                device,
+                disk.children.len()
+            ));
+            out.push_str(&format!(
+                "{},disk.{}.holders_count,{}\n",
+                snapshot.timestamp,
+                device,
+                disk.holders.len()
+            ));
+            out.push_str(&format!(
+                "{},disk.{}.slaves_count,{}\n",
+                snapshot.timestamp,
+                device,
+                disk.slaves.len()
+            ));
+            out.push_str(&format!(
+                "{},disk.{}.flag.rotational,{}\n",
+                snapshot.timestamp,
+                device,
+                u8::from(disk.rotational)
+            ));
+            out.push_str(&format!(
+                "{},disk.{}.flag.removable,{}\n",
+                snapshot.timestamp,
+                device,
+                u8::from(disk.removable)
+            ));
+            out.push_str(&format!(
+                "{},disk.{}.flag.read_only,{}\n",
+                snapshot.timestamp,
+                device,
+                u8::from(disk.read_only)
+            ));
             out.push_str(&format!(
                 "{},disk.{}.usage_pct,{:.2}\n",
                 snapshot.timestamp, device, disk.usage_pct

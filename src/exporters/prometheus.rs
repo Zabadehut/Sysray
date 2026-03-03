@@ -225,6 +225,14 @@ impl Exporter for PrometheusExporter {
             out.push_str("# TYPE pulsar_disk_merged_ops_per_sec gauge\n");
             out.push_str("# HELP pulsar_disk_info Portable disk classification hints\n");
             out.push_str("# TYPE pulsar_disk_info gauge\n");
+            out.push_str("# HELP pulsar_disk_inventory_info Rich disk inventory labels\n");
+            out.push_str("# TYPE pulsar_disk_inventory_info gauge\n");
+            out.push_str("# HELP pulsar_disk_stack_depth Disk logical stack depth\n");
+            out.push_str("# TYPE pulsar_disk_stack_depth gauge\n");
+            out.push_str("# HELP pulsar_disk_relation_count Disk relation counts\n");
+            out.push_str("# TYPE pulsar_disk_relation_count gauge\n");
+            out.push_str("# HELP pulsar_disk_flag Disk inventory boolean flags\n");
+            out.push_str("# TYPE pulsar_disk_flag gauge\n");
         }
         for disk in &snapshot.disks {
             let lbl = format!(
@@ -236,6 +244,60 @@ impl Exporter for PrometheusExporter {
                 escape_label(&disk.media_hint)
             );
             out.push_str(&format!("pulsar_disk_info{{{}}} 1\n", lbl));
+            let inventory_lbl = format!(
+                r#"device="{}",mount="{}",parent="{}",structure="{}",volume_kind="{}",filesystem="{}",filesystem_family="{}",protocol="{}",media="{}",transport="{}",reference="{}",scheduler="{}""#,
+                escape_label(&disk.device),
+                escape_label(&disk.mount_point),
+                escape_label(&disk.parent),
+                escape_label(&disk.structure),
+                escape_label(&disk.volume_kind),
+                escape_label(&disk.filesystem),
+                escape_label(&disk.filesystem_family),
+                escape_label(&disk.protocol_hint),
+                escape_label(&disk.media_hint),
+                escape_label(&disk.protocol_hint),
+                escape_label(&disk.reference),
+                escape_label(&disk.scheduler)
+            );
+            out.push_str(&format!(
+                "pulsar_disk_inventory_info{{{}}} 1\n",
+                inventory_lbl
+            ));
+            out.push_str(&format!(
+                "pulsar_disk_stack_depth{{device=\"{}\"}} {}\n",
+                escape_label(&disk.device),
+                disk.logical_stack.len()
+            ));
+            out.push_str(&format!(
+                "pulsar_disk_relation_count{{device=\"{}\",kind=\"children\"}} {}\n",
+                escape_label(&disk.device),
+                disk.children.len()
+            ));
+            out.push_str(&format!(
+                "pulsar_disk_relation_count{{device=\"{}\",kind=\"holders\"}} {}\n",
+                escape_label(&disk.device),
+                disk.holders.len()
+            ));
+            out.push_str(&format!(
+                "pulsar_disk_relation_count{{device=\"{}\",kind=\"slaves\"}} {}\n",
+                escape_label(&disk.device),
+                disk.slaves.len()
+            ));
+            out.push_str(&format!(
+                "pulsar_disk_flag{{device=\"{}\",flag=\"rotational\"}} {}\n",
+                escape_label(&disk.device),
+                u8::from(disk.rotational)
+            ));
+            out.push_str(&format!(
+                "pulsar_disk_flag{{device=\"{}\",flag=\"removable\"}} {}\n",
+                escape_label(&disk.device),
+                u8::from(disk.removable)
+            ));
+            out.push_str(&format!(
+                "pulsar_disk_flag{{device=\"{}\",flag=\"read_only\"}} {}\n",
+                escape_label(&disk.device),
+                u8::from(disk.read_only)
+            ));
             out.push_str(&format!(
                 "pulsar_disk_used_bytes{{{}}} {:.0}\n",
                 lbl,

@@ -361,6 +361,9 @@ fn flatten_lsblk_node(node: &Value, out: &mut Vec<RawDiskInventory>) {
 fn enrich_linux_disk_inventory(items: &mut [RawDiskInventory]) {
     let lvm_vgs = read_lvm_pv_map();
     let lvs = read_lvm_lv_map();
+    let dmsetup = read_dmsetup_map();
+    let mdadm = read_mdadm_map();
+    let btrfs = read_btrfs_map();
     let parent_map: HashMap<String, Option<String>> = items
         .iter()
         .map(|item| (item.device.clone(), item.parent.clone()))
@@ -371,6 +374,9 @@ fn enrich_linux_disk_inventory(items: &mut [RawDiskInventory]) {
         let dm_name = read_string_file(&sys_path.join("dm/name"));
         let dm_uuid = read_string_file(&sys_path.join("dm/uuid"));
         let md_level = read_string_file(&sys_path.join("md/level"));
+        let dmsetup_info = dmsetup.get(&item.device);
+        let mdadm_info = mdadm.get(&item.device);
+        let btrfs_info = btrfs.get(&item.device);
 
         if item.structure == "remote-mount" {
             item.volume_kind = remote_volume_kind(&item.filesystem);
@@ -390,11 +396,38 @@ fn enrich_linux_disk_inventory(items: &mut [RawDiskInventory]) {
         if item.reference.is_empty() {
             item.reference = read_string_file(&sys_path.join("device/wwid"))
                 .or_else(|| dm_uuid.clone())
+                .or_else(|| {
+                    dmsetup_info
+                        .map(|info| info.uuid.clone())
+                        .filter(|value| !value.is_empty())
+                })
+                .or_else(|| {
+                    mdadm_info
+                        .map(|info| info.uuid.clone())
+                        .filter(|value| !value.is_empty())
+                })
                 .or_else(|| read_string_file(&sys_path.join("device/serial")))
                 .unwrap_or_default();
         }
         if item.label.is_empty() {
-            item.label = dm_name.clone().unwrap_or_default();
+            item.label = dm_name
+                .clone()
+                .or_else(|| {
+                    dmsetup_info
+                        .map(|info| info.name.clone())
+                        .filter(|value| !value.is_empty())
+                })
+                .or_else(|| {
+                    mdadm_info
+                        .map(|info| info.name.clone())
+                        .filter(|value| !value.is_empty())
+                })
+                .or_else(|| {
+                    btrfs_info
+                        .map(|info| info.label.clone())
+                        .filter(|value| !value.is_empty())
+                })
+                .unwrap_or_default();
         }
         if let Some(vg_name) = lvm_vgs.get(&item.device) {
             if item.volume_kind.is_empty() || item.volume_kind == "partition" {
@@ -415,6 +448,32 @@ fn enrich_linux_disk_inventory(items: &mut [RawDiskInventory]) {
             }
             if item.reference.is_empty() {
                 item.reference = lv_path.clone();
+            }
+        }
+        if let Some(info) = mdadm_info {
+            if item.volume_kind.is_empty() || item.volume_kind == "raid-array" {
+                item.volume_kind = format!("md-{}", info.level);
+            }
+            if item.label.is_empty() {
+                item.label = info.name.clone();
+            }
+        }
+        if let Some(info) = btrfs_info {
+            if item.filesystem.is_empty() {
+                item.filesystem = "btrfs".to_string();
+            }
+            item.filesystem_family = "btrfs".to_string();
+            if item.label.is_empty() && !info.label.is_empty() {
+                item.label = info.label.clone();
+            }
+            if item.reference.is_empty() && !info.uuid.is_empty() {
+                item.reference = info.uuid.clone();
+            }
+            if item.volume_kind == "partition"
+                || item.volume_kind == "filesystem-volume"
+                || item.volume_kind.is_empty()
+            {
+                item.volume_kind = "btrfs-member".to_string();
             }
         }
         item.scheduler = read_string_file(&sys_path.join("queue/scheduler"))
@@ -718,6 +777,128 @@ fn read_lvm_lv_map() -> HashMap<String, (String, String, String)> {
             );
         }
     }
+    map
+}
+
+#[derive(Clone)]
+struct DmsetupInfo {
+    name: String,
+    uuid: String,
+}
+
+fn read_dmsetup_map() -> HashMap<String, DmsetupInfo> {
+    let Some(output) = command_output(
+        "dmsetup",
+        &["info", "-C", "--noheadings", "-o", "blkdevname,name,uuid"],
+    ) else {
+        return HashMap::new();
+    };
+
+    output
+        .lines()
+        .filter_map(|line| {
+            let parts = line.split_whitespace().collect::<Vec<_>>();
+            if parts.len() < 3 {
+                return None;
+            }
+            Some((
+                parts[0].to_string(),
+                DmsetupInfo {
+                    name: parts[1].to_string(),
+                    uuid: parts[2].to_string(),
+                },
+            ))
+        })
+        .collect()
+}
+
+#[derive(Clone)]
+struct MdadmInfo {
+    level: String,
+    name: String,
+    uuid: String,
+}
+
+fn read_mdadm_map() -> HashMap<String, MdadmInfo> {
+    let Some(output) = command_output("mdadm", &["--detail", "--scan"]) else {
+        return HashMap::new();
+    };
+
+    output
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.split_whitespace();
+            if parts.next()? != "ARRAY" {
+                return None;
+            }
+            let dev = parts
+                .next()?
+                .strip_prefix("/dev/")
+                .unwrap_or_default()
+                .to_string();
+            if dev.is_empty() {
+                return None;
+            }
+
+            let mut level = String::new();
+            let mut name = String::new();
+            let mut uuid = String::new();
+            for token in parts {
+                if let Some(value) = token.strip_prefix("level=") {
+                    level = value.to_string();
+                } else if let Some(value) = token.strip_prefix("name=") {
+                    name = value.to_string();
+                } else if let Some(value) = token.strip_prefix("UUID=") {
+                    uuid = value.to_string();
+                }
+            }
+
+            Some((dev, MdadmInfo { level, name, uuid }))
+        })
+        .collect()
+}
+
+#[derive(Clone)]
+struct BtrfsInfo {
+    label: String,
+    uuid: String,
+}
+
+fn read_btrfs_map() -> HashMap<String, BtrfsInfo> {
+    let Some(output) = command_output("btrfs", &["filesystem", "show"]) else {
+        return HashMap::new();
+    };
+
+    let mut map = HashMap::new();
+    let mut current = BtrfsInfo {
+        label: String::new(),
+        uuid: String::new(),
+    };
+
+    for line in output.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("Label:") {
+            let label = rest
+                .split("uuid:")
+                .next()
+                .map(str::trim)
+                .unwrap_or_default()
+                .trim_matches('\'')
+                .to_string();
+            let uuid = trimmed
+                .split("uuid:")
+                .nth(1)
+                .map(str::trim)
+                .unwrap_or_default()
+                .to_string();
+            current = BtrfsInfo { label, uuid };
+        } else if let Some(path) = trimmed.split_whitespace().last() {
+            if let Some(device) = path.strip_prefix("/dev/") {
+                map.insert(device.to_string(), current.clone());
+            }
+        }
+    }
+
     map
 }
 

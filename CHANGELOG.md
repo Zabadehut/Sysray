@@ -18,6 +18,8 @@ The format is inspired by Keep a Changelog, and this project aims to follow Sema
 - Real README capture for `inventory+`
 - Linux remote filesystem inventory entries for `NFS` / `SMB` / `SSHFS`-style mounts
 - macOS and Windows remote filesystem inventory entries when the OS exposes network share mappings
+- Linux optional enrichers for `dmsetup`, `mdadm`, and `btrfs filesystem show` when available
+- CSV and Prometheus export of disk inventory categories and relation counts
 
 ### Changed
 
