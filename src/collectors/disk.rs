@@ -506,6 +506,7 @@ mod tests {
         assert_eq!(per_second, 200);
     }
 
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn disk_collector_runs_and_produces_sane_values_on_linux() {
         let mut collector = DiskCollector::new();
