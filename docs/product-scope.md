@@ -20,12 +20,14 @@ Included:
 
 - host collectors and exporters
 - TUI and local workflows
+- expert local diagnostics in TUI/CLI/API for advanced operators
 - Linux-specific depth such as cgroup v2 and PSI
 - documented cross-platform baseline support with explicit per-OS caveats
 - replay, alerting, and usability improvements that benefit all users
 
 Community scope should remain the main place where core system observability gets better.
 Enterprise scope should build on top of this base with governance and operational guarantees, not by hollowing out the core metric surface.
+That includes expert workflows: pressure triage, network diagnosis, JVM-focused inspection, disk-contention analysis, and similar local deep-dive views belong in Core when they run on one host from one binary.
 
 ## V1 Foundation
 
@@ -83,6 +85,7 @@ Included:
 - replay mode
 - richer alerts
 - more complete TUI workflows
+- specialist local operator views and deeper single-host diagnostics
 - first performance benchmark suite
 
 Optional V2 candidates:
@@ -105,6 +108,7 @@ Included:
 - API hardening
 - plugin story
 - richer application correlation
+- fleet-level expert workflows built on top of local diagnostics
 
 Likely additions:
 
@@ -129,9 +133,15 @@ Included:
 - release process maturity
 - support workflows
 - SLA-oriented operations
+- multi-host policy, access control, and shared operational history
 
-Enterprise scope is not a synonym for "more metrics".
-It primarily means operational guarantees, governance, supportability, and controlled rollout.
+Enterprise scope is not a synonym for "more metrics" or "expert mode".
+It primarily means operational guarantees, governance, supportability, controlled rollout, and cross-host operational control.
+
+Explicit separation:
+
+- Core/expert: local deep diagnostics, richer TUI modes, per-host advanced analysis
+- Enterprise: RBAC, SSO, fleet policy, retention governance, multi-host correlation, auditability
 
 ## Infinite Scale Clarification
 

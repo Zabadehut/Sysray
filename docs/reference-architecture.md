@@ -10,9 +10,11 @@ Keep one reference model for:
 - API exposure
 - future CLI explain/help commands
 - future translations
+- future expert local diagnostic views
 
 The point is to avoid duplicating metric explanations in several UIs with diverging wording.
 The catalog must be wider than the current TUI and include implemented, partial, and planned metrics.
+That same catalog should feed both beginner surfaces and expert single-host analysis without creating a separate enterprise-only knowledge base.
 
 ## Current Design
 
@@ -101,6 +103,7 @@ Recommended next locales only if quality is maintainable:
 - easier onboarding for beginners
 - still useful detail for expert operators
 - future i18n without redesigning the feature later
+- one boundary between local expert depth and enterprise governance
 
 ## What Is Still Missing
 

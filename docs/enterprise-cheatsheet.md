@@ -29,11 +29,13 @@ This sheet captures the intended enterprise posture for Pulsar without overstati
 - audit-ready configuration and access model
 - documented compatibility windows
 - retention and operational governance once multi-host exists
+- fleet-level correlation and policy once multi-host exists
 
 ## What Enterprise Should Not Replace
 
 - core host collectors
 - TUI and local workflows
+- expert single-host diagnostics
 - baseline exporters
 - cross-platform baseline support
 - Linux-first depth already promised to the community
@@ -43,6 +45,7 @@ This sheet captures the intended enterprise posture for Pulsar without overstati
 - enterprise controls are planned, not implemented
 - distributed retention and orchestration are not implemented
 - current repo state is still V1/V2 foundation work
+- local expert analysis should be treated as Core scope, not as Enterprise scope
 
 ## Enterprise Deployment Expectations
 
@@ -119,6 +122,11 @@ Use:
 - enterprise-grade operational model
 - controlled rollout path
 - supportability and governance roadmap
+- fleet policy and shared history
+
+Avoid even later:
+
+- implying that local expert diagnostics require Enterprise
 
 Avoid until implemented:
 

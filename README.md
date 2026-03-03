@@ -16,6 +16,12 @@ What Pulsar aims to become:
 - A strong open core foundation for future Pro, Cloud, and enterprise offerings
 - A modern Rust-native replacement for aging system tools
 
+Product boundary:
+
+- Pulsar Core should include deep local diagnostics for advanced operators
+- Pulsar Enterprise should add governance, fleet-level control, and shared history
+- Enterprise is not where local expert analysis gets hidden
+
 ## Current Status
 
 Current stage: early V1 foundation.
@@ -34,6 +40,7 @@ What is working now:
 - Cross-platform platform layer with Linux implementation and macOS/Windows stubs
 - Service management scaffolding for `systemd`, `launchd`, and Windows Task Scheduler
 - Shared technical reference catalog exposed in TUI, API, and CLI explain mode
+- TUI depth can continue to grow with expert local diagnostics without becoming an enterprise-only feature
 
 What is not finished yet:
 

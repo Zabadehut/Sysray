@@ -13,6 +13,7 @@ This sheet is the fast reference for Pulsar Core / Community usage.
 
 - CPU, memory, disk, network, process, and system metrics
 - TUI
+- expert local diagnostics and advanced operator views when they stay single-host
 - JSON, CSV, and Prometheus text export
 - local recording to `.jsonl`
 - shared pipeline for derived metrics and threshold alerts
@@ -80,7 +81,15 @@ systemctl --user status pulsar.service
 - keep the binary self-contained
 - keep the default workflow local and operator-friendly
 - do not move core host observability behind enterprise gating
+- do not move expert single-host diagnosis behind enterprise gating
 - describe macOS and Windows as baseline coverage until parity is real
+
+Examples that should stay in Core:
+
+- pressure diagnosis on one host
+- deep network/socket views on one host
+- JVM-focused operator views on one host
+- disk-contention triage on one host
 
 ## Recording Rotation
 

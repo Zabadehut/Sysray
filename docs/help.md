@@ -34,6 +34,11 @@ TUI knowledge helper:
 - `s` toggles the system panel
 - `Esc` closes search or the index pane
 
+Product boundary reminder:
+
+- richer local operator diagnostics belong in Pulsar Core
+- enterprise scope starts at governance, fleet policy, shared history, and access control
+
 ## Command Notes
 
 ### `record`
