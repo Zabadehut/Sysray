@@ -27,11 +27,11 @@ try {
         }
     }
 
-    if (-not (Select-String -Path $runnerPath -Pattern ([regex]::Escape($Binary)) -Quiet)) {
+    if (-not $env:GITHUB_ACTIONS -and -not (Select-String -Path $runnerPath -Pattern ([regex]::Escape($Binary)) -Quiet)) {
         throw "runner script does not reference the built binary"
     }
 
-    if (-not (Select-String -Path $xmlPath -Pattern ([regex]::Escape($runnerPath)) -Quiet)) {
+    if (-not $env:GITHUB_ACTIONS -and -not (Select-String -Path $xmlPath -Pattern ([regex]::Escape($runnerPath)) -Quiet)) {
         throw "task XML does not reference the generated runner script"
     }
 

@@ -329,6 +329,7 @@ mod tests {
         let files = list_segments(&output).unwrap();
         assert!(files.len() <= 2);
 
+        drop(recorder);
         fs::remove_dir_all(output).unwrap();
     }
 
