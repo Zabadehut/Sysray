@@ -11,6 +11,7 @@ Current commands:
 - `pulsar`
 - `pulsar tui`
 - `pulsar snapshot --format json|csv|prometheus`
+- `pulsar inventory --format table|json`
 - `pulsar record --interval 5s --output ./captures --rotate hourly --keep-files 24 --compress zip`
 - `pulsar server --port 9090`
 - `pulsar top --sort cpu --limit 20`
@@ -33,12 +34,15 @@ TUI knowledge helper:
 
 - `/` opens reference search
 - `?` toggles the technical index
+- `l` opens the live logs pane
+- `L` adds a watched path or pattern to the live logs pane
 - `1`..`6` switch operator presets (`overview`, `io`, `network`, `process`, `pressure`, `full`)
 - `7`..`0` open expert local diagnostics (`pressure+`, `network+`, `jvm+`, `disk+`)
 - `g` opens `inventory+` for a local disk tree / stack view
 - `-` returns from the expert submenu to the normal monitoring layout
 - `v` toggles compact vs detailed views
 - `i` switches the TUI language and keeps the index aligned with it (`fr` / `en`)
+- `k` toggles the Linux panel
 - `s` toggles the system panel
 - `Esc` closes search or the index pane
 
@@ -60,6 +64,8 @@ Index behavior:
 - Linux inventory enrichment now also tries to recognize `LVM`, `LUKS`, `multipath`, `md`, and remote filesystems like `NFS`/`SMB`
 - remote filesystem inventory is now modeled across Linux, macOS, and Windows when the OS exposes enough information
 - CSV and Prometheus exports now also surface disk inventory categories such as `volume_kind`, `filesystem_family`, relation counts, stack depth, and disk flags
+- the alerts panel now also surfaces recent native OS events (`info`, `warning`, `error`) when the current OS exposes them naturally
+- the live logs pane merges those native OS events with tailed file targets from recent files under the watched paths/patterns
 - the standard disk views now expose `structure`, `proto`, and `media` hints to make cross-OS storage paths easier to read
 - disk inventory is moving toward an `lsblk`-like model with `parent`, `filesystem`, `uuid`, `label`, `model`, `serial`, `refs`, `mounts`, and `children`
 - `disk+` now also surfaces stack and stable-ref cues for the hottest path so UUID/ref/parentage stay visible in the TUI

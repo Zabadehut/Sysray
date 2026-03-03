@@ -1,4 +1,5 @@
-use crate::collectors::Snapshot;
+use crate::collectors::{LogEntry, Snapshot};
+use crate::log_sources;
 use crate::reference::{self, Locale, SearchHit, UiVisibility};
 use crate::tui::{
     i18n::text,
@@ -6,8 +7,8 @@ use crate::tui::{
     widgets::{
         alerts_widget,
         analysis_widget::{self, SpecialistView},
-        cpu_widget, disk_widget, linux_widget, memory_widget, network_widget, process_widget,
-        reference_widget, system_widget,
+        cpu_widget, disk_widget, linux_widget, log_widget, memory_widget, network_widget,
+        process_widget, reference_widget, system_widget,
     },
 };
 use ratatui::{
@@ -134,6 +135,17 @@ pub struct ReferenceUiState {
     pub selected: usize,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct LogUiState {
+    pub visible: bool,
+    pub input_active: bool,
+    pub query: String,
+    pub targets: Vec<String>,
+    pub entries: Vec<LogEntry>,
+    pub last_error: Option<String>,
+    pub last_refresh_ts: i64,
+}
+
 impl Dashboard {
     pub fn new(theme_name: &str, locale: Locale) -> Self {
         let theme_name = Theme::normalize_name(theme_name).to_string();
@@ -189,10 +201,16 @@ impl Dashboard {
         }
     }
 
-    pub fn render(&self, frame: &mut Frame, snapshot: &Snapshot, reference: &ReferenceUiState) {
+    pub fn render(
+        &self,
+        frame: &mut Frame,
+        snapshot: &Snapshot,
+        reference: &ReferenceUiState,
+        logs: &LogUiState,
+    ) {
         let area = frame.area();
         let header_height = self.header_height(area.width);
-        let footer_height = self.footer_height(snapshot, reference, area.width);
+        let footer_height = self.footer_height(snapshot, reference, logs, area.width);
 
         // Layout principal : header + corps + footer
         let main = Layout::default()
@@ -204,9 +222,9 @@ impl Dashboard {
             ])
             .split(area);
 
-        self.render_header(frame, main[0], snapshot, reference);
-        self.render_body(frame, main[1], snapshot, reference);
-        self.render_footer(frame, main[2], snapshot, reference);
+        self.render_header(frame, main[0], snapshot, reference, logs);
+        self.render_body(frame, main[1], snapshot, reference, logs);
+        self.render_footer(frame, main[2], snapshot, reference, logs);
     }
 
     fn render_header(
@@ -215,6 +233,7 @@ impl Dashboard {
         area: Rect,
         snapshot: &Snapshot,
         reference: &ReferenceUiState,
+        logs: &LogUiState,
     ) {
         let hostname = snapshot
             .system
@@ -238,8 +257,9 @@ impl Dashboard {
             .map(|dt| dt.format("%H:%M:%S").to_string())
             .unwrap_or_default();
 
-        let header =
-            Paragraph::new(self.header_lines(hostname, &os, &uptime, &ts, reference, area.width));
+        let header = Paragraph::new(
+            self.header_lines(hostname, &os, &uptime, &ts, reference, logs, area.width),
+        );
         frame.render_widget(header, area);
     }
 
@@ -249,6 +269,7 @@ impl Dashboard {
         area: Rect,
         snapshot: &Snapshot,
         reference: &ReferenceUiState,
+        logs: &LogUiState,
     ) {
         if reference.visible {
             let cols = Layout::default()
@@ -257,6 +278,13 @@ impl Dashboard {
                 .split(area);
             self.render_monitoring(frame, cols[0], snapshot, reference);
             self.render_reference(frame, cols[1], reference);
+        } else if logs.visible {
+            let cols = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(68), Constraint::Percentage(32)])
+                .split(area);
+            self.render_monitoring(frame, cols[0], snapshot, reference);
+            self.render_logs(frame, cols[1], snapshot, logs);
         } else {
             self.render_monitoring(frame, area, snapshot, reference);
         }
@@ -352,8 +380,8 @@ impl Dashboard {
                 frame.render_widget(
                     Paragraph::new(text(
                         self.locale,
-                        "Tous les panneaux sont caches. Basculer avec s/c/m/l/d/n/a/p.",
-                        "All panels hidden. Toggle with s/c/m/l/d/n/a/p.",
+                        "Tous les panneaux sont caches. Basculer avec s/c/m/k/d/n/a/p.",
+                        "All panels hidden. Toggle with s/c/m/k/d/n/a/p.",
                     )),
                     monitoring_area,
                 );
@@ -479,6 +507,11 @@ impl Dashboard {
                     frame,
                     chunk,
                     &snapshot.computed.alerts,
+                    snapshot
+                        .logs
+                        .as_ref()
+                        .map(|logs| logs.system_events.as_slice())
+                        .unwrap_or(&[]),
                     self.locale,
                     &self.theme,
                     self.panel_highlighted(Panel::Alerts, reference),
@@ -506,6 +539,33 @@ impl Dashboard {
                 indexed_only_count: hits.len().saturating_sub(visible_count),
                 hits: &hits,
                 selected,
+            },
+            &self.theme,
+        );
+    }
+
+    fn render_logs(&self, frame: &mut Frame, area: Rect, snapshot: &Snapshot, logs: &LogUiState) {
+        let mut entries = snapshot
+            .logs
+            .as_ref()
+            .map(|item| item.system_events.clone())
+            .unwrap_or_default();
+        entries.extend(logs.entries.clone());
+        entries.sort_by(|a, b| {
+            b.timestamp
+                .cmp(&a.timestamp)
+                .then_with(|| a.origin.cmp(&b.origin))
+        });
+        log_widget::render(
+            frame,
+            area,
+            log_widget::LogWidgetState {
+                locale: self.locale,
+                targets: &logs.targets,
+                query: &logs.query,
+                input_active: logs.input_active,
+                entries: &entries,
+                error: logs.last_error.as_deref(),
             },
             &self.theme,
         );
@@ -571,20 +631,29 @@ impl Dashboard {
         area: Rect,
         snapshot: &Snapshot,
         reference: &ReferenceUiState,
+        logs: &LogUiState,
     ) {
         let alerts = snapshot.computed.alerts.len();
         let visibility = &self.visibility;
-        let footer =
-            Paragraph::new(self.footer_lines(alerts, visibility, snapshot, reference, area.width));
+        let footer = Paragraph::new(
+            self.footer_lines(alerts, visibility, snapshot, reference, logs, area.width),
+        );
         frame.render_widget(footer, area);
     }
 
-    fn footer_height(&self, snapshot: &Snapshot, reference: &ReferenceUiState, width: u16) -> u16 {
+    fn footer_height(
+        &self,
+        snapshot: &Snapshot,
+        reference: &ReferenceUiState,
+        logs: &LogUiState,
+        width: u16,
+    ) -> u16 {
         self.footer_lines(
             snapshot.computed.alerts.len(),
             &self.visibility,
             snapshot,
             reference,
+            logs,
             width,
         )
         .len() as u16
@@ -600,6 +669,7 @@ impl Dashboard {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn header_lines(
         &self,
         hostname: &str,
@@ -607,6 +677,7 @@ impl Dashboard {
         uptime: &str,
         ts: &str,
         reference: &ReferenceUiState,
+        logs: &LogUiState,
         width: u16,
     ) -> Vec<Line<'static>> {
         let title = Span::styled(" ◉ PULSAR ", self.theme.title_style());
@@ -631,6 +702,8 @@ impl Dashboard {
                 ),
                 self.theme.highlight_style(),
             ),
+            Span::raw("  "),
+            self.logs_header_span(logs),
             Span::raw("  "),
             self.reference_header_span(reference),
         ]);
@@ -664,6 +737,8 @@ impl Dashboard {
                 ),
                 self.theme.highlight_style(),
             ),
+            Span::raw("  "),
+            self.logs_header_span(logs),
             Span::raw("  "),
             self.reference_header_span(reference),
         ]);
@@ -721,12 +796,42 @@ impl Dashboard {
         )
     }
 
+    fn logs_header_span(&self, logs: &LogUiState) -> Span<'static> {
+        Span::styled(
+            if logs.input_active {
+                format!(
+                    "{}:{}",
+                    text(self.locale, "logs", "logs"),
+                    text(self.locale, "saisie", "input")
+                )
+            } else if logs.visible {
+                format!(
+                    "{}:{}",
+                    text(self.locale, "logs", "logs"),
+                    text(self.locale, "on", "on")
+                )
+            } else {
+                format!(
+                    "{}:{}",
+                    text(self.locale, "logs", "logs"),
+                    text(self.locale, "off", "off")
+                )
+            },
+            if logs.visible || logs.input_active {
+                self.theme.highlight_style()
+            } else {
+                self.theme.muted_style()
+            },
+        )
+    }
+
     fn footer_lines(
         &self,
         alerts: usize,
         visibility: &PanelVisibility,
         snapshot: &Snapshot,
         reference: &ReferenceUiState,
+        logs: &LogUiState,
         width: u16,
     ) -> Vec<Line<'static>> {
         let nav = Line::from(vec![
@@ -752,13 +857,19 @@ impl Dashboard {
                 text(self.locale, "detail", "detail"),
                 self.detail_level.label(self.locale)
             )),
+            hotkey_span("l", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", text(self.locale, "logs", "logs"))),
             hotkey_span("/", self.theme.highlight_style()),
             Span::raw(format!(":{}  ", text(self.locale, "search", "search"))),
             hotkey_span("?", self.theme.highlight_style()),
             Span::raw(format!(":{}  ", text(self.locale, "index", "index"))),
             hotkey_span("esc", self.theme.highlight_style()),
-            Span::raw(if reference.input_active {
+            Span::raw(if logs.input_active {
+                text(self.locale, ":fermer saisie logs", ":close log input")
+            } else if reference.input_active {
                 text(self.locale, ":fermer recherche", ":close search")
+            } else if logs.visible {
+                text(self.locale, ":fermer logs", ":close logs")
             } else if reference.visible {
                 text(self.locale, ":fermer index", ":close index")
             } else {
@@ -766,7 +877,9 @@ impl Dashboard {
             }),
         ]);
 
-        let context = if reference.input_active || reference.visible {
+        let context = if logs.input_active || logs.visible {
+            self.logs_footer_line(logs)
+        } else if reference.input_active || reference.visible {
             self.reference_footer_line(reference)
         } else if self.specialist_view != SpecialistView::None {
             self.expert_footer_line()
@@ -827,7 +940,7 @@ impl Dashboard {
 
         let status_compact = width < 110 && self.specialist_view == SpecialistView::None;
         let status = if status_compact {
-            self.compact_status_line(alerts, visibility, reference)
+            self.compact_status_line(alerts, visibility, reference, logs)
         } else {
             status
         };
@@ -938,6 +1051,32 @@ impl Dashboard {
         ])
     }
 
+    fn logs_footer_line(&self, logs: &LogUiState) -> Line<'static> {
+        Line::from(vec![
+            hotkey_span("l", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}  ",
+                text(self.locale, "ouvrir logs", "open logs")
+            )),
+            hotkey_span("L", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}  ",
+                text(self.locale, "ajouter chemin", "add path")
+            )),
+            hotkey_span("enter", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}  ",
+                text(self.locale, "valider chemin", "save path")
+            )),
+            hotkey_span("esc", self.theme.highlight_style()),
+            Span::raw(if logs.input_active {
+                text(self.locale, ":fermer saisie logs", ":close log input")
+            } else {
+                text(self.locale, ":fermer logs", ":close logs")
+            }),
+        ])
+    }
+
     fn contextual_panel_line(&self, visibility: &PanelVisibility) -> Line<'static> {
         let panels = match self.specialist_view {
             SpecialistView::Pressure => &[
@@ -1023,7 +1162,7 @@ impl Dashboard {
                 Panel::System => ("s", text(self.locale, "sys", "sys"), visibility.system),
                 Panel::Cpu => ("c", text(self.locale, "cpu", "cpu"), visibility.cpu),
                 Panel::Memory => ("m", text(self.locale, "mem", "mem"), visibility.memory),
-                Panel::Linux => ("l", text(self.locale, "linux", "linux"), visibility.linux),
+                Panel::Linux => ("k", text(self.locale, "linux", "linux"), visibility.linux),
                 Panel::Disk => ("d", text(self.locale, "disk", "disk"), visibility.disk),
                 Panel::Network => ("n", text(self.locale, "net", "net"), visibility.network),
                 Panel::Alerts => (
@@ -1044,6 +1183,7 @@ impl Dashboard {
         alerts: usize,
         visibility: &PanelVisibility,
         reference: &ReferenceUiState,
+        logs: &LogUiState,
     ) -> Line<'static> {
         Line::from(vec![
             Span::styled(
@@ -1082,7 +1222,36 @@ impl Dashboard {
                     self.theme.highlight_style()
                 },
             ),
+            Span::raw("  "),
+            Span::styled(
+                format!(
+                    "{}:{}",
+                    text(self.locale, "logs", "logs"),
+                    logs.targets.len()
+                ),
+                if logs.targets.is_empty() {
+                    self.theme.muted_style()
+                } else {
+                    self.theme.highlight_style()
+                },
+            ),
         ])
+    }
+
+    pub fn refresh_logs(
+        &self,
+        logs: &mut LogUiState,
+        recent_file_secs: u64,
+        max_files: usize,
+        max_lines_per_file: usize,
+    ) {
+        logs.entries = log_sources::read_tailed_paths(
+            &logs.targets,
+            recent_file_secs,
+            max_files,
+            max_lines_per_file,
+        );
+        logs.last_refresh_ts = chrono::Utc::now().timestamp();
     }
 }
 

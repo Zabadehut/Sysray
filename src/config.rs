@@ -18,6 +18,8 @@ pub struct Config {
     pub pipeline: PipelineConfig,
     #[serde(default)]
     pub record: RecordConfig,
+    #[serde(default)]
+    pub logs: LogsConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,6 +117,18 @@ pub struct RecordConfig {
     pub max_file_size_mb: Option<u64>,
     pub keep_files: Option<usize>,
     pub compress: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LogsConfig {
+    pub enabled: bool,
+    pub system_window_secs: u64,
+    pub system_max_entries: usize,
+    pub recent_file_secs: u64,
+    pub max_files: usize,
+    pub max_lines_per_file: usize,
+    pub paths: Vec<String>,
 }
 
 impl Default for GeneralConfig {
@@ -222,6 +236,20 @@ impl Default for RecordConfig {
             max_file_size_mb: None,
             keep_files: None,
             compress: "none".to_string(),
+        }
+    }
+}
+
+impl Default for LogsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            system_window_secs: 3600,
+            system_max_entries: 24,
+            recent_file_secs: 3600,
+            max_files: 8,
+            max_lines_per_file: 40,
+            paths: Vec::new(),
         }
     }
 }

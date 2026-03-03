@@ -3,6 +3,7 @@ pub mod analysis_widget;
 pub mod cpu_widget;
 pub mod disk_widget;
 pub mod linux_widget;
+pub mod log_widget;
 pub mod memory_widget;
 pub mod network_widget;
 pub mod process_widget;

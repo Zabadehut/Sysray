@@ -5,6 +5,7 @@ mod config;
 mod engine;
 mod exporters;
 mod inventory;
+mod log_sources;
 mod pipeline;
 mod platform;
 mod recording;
@@ -16,7 +17,7 @@ use anyhow::Result;
 use clap::Parser;
 use cli::{Cli, Commands};
 use collectors::{
-    CpuCollector, DiskCollector, LinuxCollector, MemoryCollector, NetworkCollector,
+    CpuCollector, DiskCollector, LinuxCollector, LogsCollector, MemoryCollector, NetworkCollector,
     ProcessCollector, SystemCollector,
 };
 use config::Config;
@@ -124,6 +125,10 @@ fn build_registry(config: &Config) -> Registry {
     r.register(SystemCollector::new(), secs(col.system_interval_secs));
     #[cfg(target_os = "linux")]
     r.register(LinuxCollector::new(), secs(col.system_interval_secs));
+    r.register(
+        LogsCollector::new(config.logs.clone()),
+        secs(col.system_interval_secs),
+    );
     r
 }
 
@@ -156,7 +161,7 @@ async fn run_tui(config: Config) -> Result<()> {
         scheduler.run(token_clone).await;
     });
 
-    tui::run_tui(&config.tui, rx).await?;
+    tui::run_tui(&config.tui, &config.logs, rx).await?;
     token.cancel();
     Ok(())
 }

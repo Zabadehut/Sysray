@@ -69,3 +69,12 @@ rotate           = "never" # never | hourly | daily
 max_file_size_mb = 0       # 0 disables size rotation
 keep_files       = 0       # 0 disables raw retention pruning
 compress         = "none"  # none | zip
+
+[logs]
+enabled            = true
+system_window_secs = 3600
+system_max_entries = 24
+recent_file_secs   = 3600
+max_files          = 8
+max_lines_per_file = 40
+paths              = []    # ex: ["/var/log/app/*.log", "/srv/service/logs"]

@@ -1,6 +1,7 @@
 pub mod cpu;
 pub mod disk;
 pub mod linux;
+pub mod logs;
 pub mod memory;
 pub mod network;
 pub mod process;
@@ -9,6 +10,7 @@ pub mod system;
 pub use cpu::{CpuCollector, CpuMetrics};
 pub use disk::{DiskCollector, DiskMetrics};
 pub use linux::{LinuxCollector, LinuxMetrics};
+pub use logs::LogsCollector;
 pub use memory::{MemoryCollector, MemoryMetrics};
 pub use network::{NetworkCollector, NetworkMetrics};
 pub use process::{ProcessCollector, ProcessMetrics};
@@ -37,6 +39,23 @@ pub struct Alert {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct LogEntry {
+    pub timestamp: i64,
+    pub level: AlertLevel,
+    pub source: String,
+    pub origin: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct LogsMetrics {
+    pub timestamp: i64,
+    pub system_events: Vec<LogEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum AlertLevel {
     #[default]
     Info,
@@ -56,6 +75,7 @@ pub struct Snapshot {
     pub processes: Vec<ProcessMetrics>,
     pub system: Option<SystemMetrics>,
     pub linux: Option<LinuxMetrics>,
+    pub logs: Option<LogsMetrics>,
     pub computed: ComputedMetrics,
 }
 
@@ -94,6 +114,7 @@ mod tests {
         assert_eq!(snapshot.computed.alerts_warning, 0);
         assert_eq!(snapshot.computed.alerts_critical, 0);
         assert!(snapshot.linux.is_none());
+        assert!(snapshot.logs.is_none());
         assert!(snapshot.computed.alerts.is_empty());
     }
 
