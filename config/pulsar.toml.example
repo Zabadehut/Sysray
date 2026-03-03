@@ -1,0 +1,62 @@
+[general]
+log_level         = "info"
+hostname_override = ""
+
+[collectors]
+# Activation des collectors
+cpu        = true
+memory     = true
+disk       = true
+network    = true
+process    = true
+containers = false
+
+# Intervalles d'exécution (secondes)
+# CPU plus fréquent pour une courbe réactive
+cpu_interval_secs     = 1
+memory_interval_secs  = 2
+disk_interval_secs    = 2
+network_interval_secs = 2
+process_interval_secs = 2
+system_interval_secs  = 30
+
+# Options process
+process_top_n = 20
+jvm_detection = true
+
+[exporters]
+json            = true
+csv             = false
+prometheus      = false
+prometheus_port = 9090
+
+[api]
+enabled = false
+port    = 8080
+bind    = "127.0.0.1"
+
+[tui]
+enabled         = true
+refresh_rate_ms = 500
+theme           = "dark"   # dark | light | cosmic
+
+[pipeline]
+cpu_trend    = true
+mem_pressure = true
+alerts       = true
+
+[pipeline.thresholds]
+cpu_warning_pct  = 75.0
+cpu_critical_pct = 90.0
+mem_warning_pct  = 80.0
+mem_critical_pct = 95.0
+psi_cpu_some_warning_pct         = 10.0
+psi_cpu_some_critical_pct        = 20.0
+psi_memory_some_warning_pct      = 5.0
+psi_memory_some_critical_pct     = 10.0
+psi_io_some_warning_pct          = 10.0
+psi_io_some_critical_pct         = 20.0
+cgroup_memory_warning_pct        = 80.0
+cgroup_memory_critical_pct       = 95.0
+cgroup_cpu_throttling_warning_pct  = 10.0
+cgroup_cpu_throttling_critical_pct = 25.0

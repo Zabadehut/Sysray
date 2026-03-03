@@ -1,0 +1,114 @@
+# Pulsar Help
+
+This page aligns the operator help with the current CLI surface.
+
+## Available Now
+
+Use `pulsar --help` for the command index and `pulsar <command> --help` for command details.
+
+Current commands:
+
+- `pulsar`
+- `pulsar tui`
+- `pulsar snapshot --format json|csv|prometheus`
+- `pulsar record --interval 5s --output ./captures`
+- `pulsar server --port 9090`
+- `pulsar top --sort cpu --limit 20`
+- `pulsar watch --pid <PID>`
+- `pulsar replay <FILE>`
+- `pulsar service install|status|uninstall`
+
+## Command Notes
+
+### `record`
+
+Current behavior:
+
+- writes local `.jsonl` files
+- does not yet rotate files by time
+- does not yet rotate files by size
+- does not yet compress rotated archives
+
+Current example:
+
+```bash
+mkdir -p ./captures
+pulsar record --interval 5s --output ./captures
+```
+
+### `snapshot`
+
+Examples:
+
+```bash
+pulsar snapshot --format json
+pulsar snapshot --format csv
+pulsar snapshot --format prometheus
+```
+
+### `service`
+
+Examples:
+
+```bash
+pulsar service install
+pulsar service status
+pulsar service uninstall
+```
+
+Developer reminder on Linux:
+
+- `cargo build` updates `target/debug/pulsar` only
+- the `systemd --user` service usually runs `~/.local/bin/pulsar` via `~/.local/share/pulsar/pulsar-service.sh`
+- after local code changes, reinstall the binary before restarting the service
+
+```bash
+./scripts/install-linux-user.sh
+systemctl --user restart pulsar.service
+systemctl --user status pulsar.service --no-pager
+journalctl --user -u pulsar.service -n 50 --no-pager
+```
+
+OS mapping:
+
+- Linux: `systemd --user`
+- macOS: `launchd`
+- Windows: Task Scheduler
+
+## Planned, Not In CLI Yet
+
+These shapes are documented for roadmap clarity only. They do not exist in the current binary help.
+
+### Planned recording rotation
+
+```bash
+pulsar record \
+  --interval 5s \
+  --output ./captures \
+  --rotate hourly \
+  --max-file-size 512MB \
+  --keep 168 \
+  --compress zip
+```
+
+### Planned portable archive command
+
+```bash
+pulsar archive zip \
+  --input ./captures/pulsar_20260303_140000.jsonl \
+  --output ./captures/pulsar_20260303_140000.jsonl.zip
+```
+
+Constraints for that future archive path:
+
+- Rust-native implementation
+- no OS archive utility dependency
+- same behavior on Linux, macOS, and Windows
+
+## Documentation Map
+
+- `docs/community-cheatsheet.md`
+- `docs/enterprise-cheatsheet.md`
+- `docs/cross-os-cheatsheet.md`
+- `docs/product-scope.md`
+- `docs/metrics-matrix.md`

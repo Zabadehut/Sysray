@@ -1,0 +1,841 @@
+use crate::platform::api::{
+    RawCgroupMetrics, RawCpuReading, RawCpuStat, RawDiskSpace, RawDiskStat, RawLinuxMetrics,
+    RawMemoryInfo, RawNetConnections, RawNetStat, RawPressureMetric, RawPressureWindow,
+    RawProcReading, RawPsiMetrics, RawSystemInfo,
+};
+use anyhow::Result;
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+// ─── CPU ─────────────────────────────────────────────────────────────────────
+
+fn parse_cpu_line(line: &str) -> Option<RawCpuStat> {
+    let mut parts = line.split_whitespace();
+    parts.next()?; // skip label
+    let user = parts.next()?.parse().ok()?;
+    let nice = parts.next()?.parse().ok()?;
+    let system = parts.next()?.parse().ok()?;
+    let idle = parts.next()?.parse().ok()?;
+    let iowait = parts.next()?.parse().unwrap_or(0);
+    let irq = parts.next()?.parse().unwrap_or(0);
+    let softirq = parts.next()?.parse().unwrap_or(0);
+    let steal = parts.next()?.parse().unwrap_or(0);
+    Some(RawCpuStat {
+        user,
+        nice,
+        system,
+        idle,
+        iowait,
+        irq,
+        softirq,
+        steal,
+    })
+}
+
+pub fn read_cpu() -> Result<RawCpuReading> {
+    let content = fs::read_to_string("/proc/stat")?;
+    let mut lines = content.lines();
+
+    let global_line = lines
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("/proc/stat empty"))?;
+    let global = parse_cpu_line(global_line)
+        .ok_or_else(|| anyhow::anyhow!("Failed to parse global CPU line"))?;
+
+    let mut cores: Vec<RawCpuStat> = Vec::new();
+    for line in &mut lines {
+        if !line.starts_with("cpu") || line.starts_with("cpu ") {
+            break;
+        }
+        if let Some(stat) = parse_cpu_line(line) {
+            cores.push(stat);
+        }
+    }
+
+    let loadavg = fs::read_to_string("/proc/loadavg")?;
+    let mut lp = loadavg.split_whitespace();
+    let load_avg_1 = lp.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+    let load_avg_5 = lp.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+    let load_avg_15 = lp.next().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+
+    let mut context_switches = 0u64;
+    let mut interrupts = 0u64;
+    for line in content.lines() {
+        if let Some(val) = line.strip_prefix("ctxt ") {
+            context_switches = val.trim().parse().unwrap_or(0);
+        } else if let Some(rest) = line.strip_prefix("intr ") {
+            interrupts = rest
+                .split_whitespace()
+                .next()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0);
+        }
+    }
+
+    Ok(RawCpuReading {
+        global,
+        cores,
+        load_avg_1,
+        load_avg_5,
+        load_avg_15,
+        context_switches,
+        interrupts,
+        ..RawCpuReading::default()
+    })
+}
+
+// ─── Disk ─────────────────────────────────────────────────────────────────────
+
+fn strip_partition_suffix(dev: &str) -> &str {
+    if let Some(pos) = dev.rfind('p') {
+        let suffix = &dev[pos + 1..];
+        if !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_digit()) {
+            return &dev[..pos];
+        }
+    }
+    let trimmed = dev.trim_end_matches(|c: char| c.is_ascii_digit());
+    if trimmed != dev && !trimmed.is_empty() {
+        return trimmed;
+    }
+    dev
+}
+
+pub fn read_mount_map() -> HashMap<String, String> {
+    let content = match fs::read_to_string("/proc/mounts") {
+        Ok(c) => c,
+        Err(_) => return HashMap::new(),
+    };
+    let mut map: HashMap<String, String> = HashMap::new();
+    for line in content.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 2 {
+            continue;
+        }
+        if let Some(dev) = parts[0].strip_prefix("/dev/") {
+            let mount = parts[1];
+            map.entry(dev.to_string())
+                .or_insert_with(|| mount.to_string());
+            let parent = strip_partition_suffix(dev);
+            if parent != dev {
+                map.entry(parent.to_string())
+                    .or_insert_with(|| mount.to_string());
+            }
+        }
+    }
+    map
+}
+
+pub fn read_disk_space(mount: &str) -> RawDiskSpace {
+    use std::ffi::CString;
+    use std::mem::MaybeUninit;
+    let path = match CString::new(mount) {
+        Ok(p) => p,
+        Err(_) => return RawDiskSpace::default(),
+    };
+    let mut stat: MaybeUninit<libc::statvfs> = MaybeUninit::uninit();
+    if unsafe { libc::statvfs(path.as_ptr(), stat.as_mut_ptr()) } != 0 {
+        return RawDiskSpace::default();
+    }
+    let stat = unsafe { stat.assume_init() };
+    let block = stat.f_frsize as f64;
+    let total_gb = stat.f_blocks as f64 * block / 1e9;
+    let free_gb = stat.f_bfree as f64 * block / 1e9;
+    let used_gb = total_gb - free_gb;
+    let usage_pct = if total_gb > 0.0 {
+        (used_gb / total_gb * 100.0).clamp(0.0, 100.0)
+    } else {
+        0.0
+    };
+    RawDiskSpace {
+        total_gb,
+        used_gb,
+        free_gb,
+        usage_pct,
+    }
+}
+
+pub fn read_disks() -> Result<Vec<RawDiskStat>> {
+    let diskstats = fs::read_to_string("/proc/diskstats")?;
+    let mut results = Vec::new();
+
+    for line in diskstats.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 14 {
+            continue;
+        }
+        let device = parts[2].to_string();
+        if device.starts_with("loop") || device.starts_with("ram") || device.starts_with("zram") {
+            continue;
+        }
+        if device != strip_partition_suffix(&device) {
+            continue;
+        }
+
+        results.push(RawDiskStat {
+            device,
+            reads_completed: parts[3].parse().unwrap_or(0),
+            reads_merged: parts[4].parse().unwrap_or(0),
+            reads_sectors: parts[5].parse().unwrap_or(0),
+            reads_time_ms: parts[6].parse().unwrap_or(0),
+            writes_completed: parts[7].parse().unwrap_or(0),
+            writes_merged: parts[8].parse().unwrap_or(0),
+            writes_sectors: parts[9].parse().unwrap_or(0),
+            writes_time_ms: parts[10].parse().unwrap_or(0),
+            io_ticks: parts[12].parse().unwrap_or(0),
+            weighted_io_time_ms: parts[13].parse().unwrap_or(0),
+        });
+    }
+    Ok(results)
+}
+
+// ─── Network ──────────────────────────────────────────────────────────────────
+
+pub fn read_net_connections() -> RawNetConnections {
+    let mut connections = RawNetConnections::default();
+
+    for file in &["/proc/net/tcp", "/proc/net/tcp6"] {
+        if let Ok(content) = fs::read_to_string(file) {
+            parse_socket_table(&content, false, &mut connections);
+        }
+    }
+
+    for file in &["/proc/net/udp", "/proc/net/udp6"] {
+        if let Ok(content) = fs::read_to_string(file) {
+            parse_socket_table(&content, true, &mut connections);
+        }
+    }
+
+    connections.total = connections.total.max(
+        connections.established
+            + connections.tcp_syn_sent
+            + connections.tcp_syn_recv
+            + connections.tcp_fin_wait1
+            + connections.tcp_fin_wait2
+            + connections.tcp_time_wait
+            + connections.tcp_close
+            + connections.tcp_close_wait
+            + connections.tcp_last_ack
+            + connections.tcp_listen
+            + connections.tcp_closing
+            + connections.tcp_other,
+    );
+    connections.retrans_segs =
+        read_snmp_counter("/proc/net/snmp", "Tcp", "RetransSegs").unwrap_or_default();
+    connections
+}
+
+pub fn read_network() -> Result<Vec<RawNetStat>> {
+    let content = fs::read_to_string("/proc/net/dev")?;
+    let mut results = Vec::new();
+
+    for line in content.lines().skip(2) {
+        let line = line.trim();
+        let colon = match line.find(':') {
+            Some(p) => p,
+            None => continue,
+        };
+        let interface = line[..colon].trim().to_string();
+        if interface == "lo" {
+            continue;
+        }
+        let nums: Vec<u64> = line[colon + 1..]
+            .split_whitespace()
+            .filter_map(|s| s.parse().ok())
+            .collect();
+        if nums.len() < 16 {
+            continue;
+        }
+        results.push(RawNetStat {
+            interface,
+            rx_bytes: nums[0],
+            rx_packets: nums[1],
+            rx_errors: nums[2],
+            rx_dropped: nums[3],
+            tx_bytes: nums[8],
+            tx_packets: nums[9],
+            tx_errors: nums[10],
+            tx_dropped: nums[11],
+        });
+    }
+    Ok(results)
+}
+
+// ─── Memory ───────────────────────────────────────────────────────────────────
+
+pub fn read_memory() -> Result<RawMemoryInfo> {
+    let content = fs::read_to_string("/proc/meminfo")?;
+    let mut memory = RawMemoryInfo::default();
+
+    for line in content.lines() {
+        let mut parts = line.split_whitespace();
+        let Some(key) = parts.next() else {
+            continue;
+        };
+        let Some(val) = parts.next().and_then(|v| v.parse::<u64>().ok()) else {
+            continue;
+        };
+
+        match key {
+            "MemTotal:" => memory.total_kb = val,
+            "MemFree:" => memory.free_kb = val,
+            "MemAvailable:" => memory.available_kb = val,
+            "Buffers:" => memory.buffers_kb = val,
+            "Cached:" => memory.cached_kb = val,
+            "SwapTotal:" => memory.swap_total_kb = val,
+            "SwapFree:" => memory.swap_used_kb = memory.swap_total_kb.saturating_sub(val),
+            "Dirty:" => memory.dirty_kb = val,
+            _ => {}
+        }
+    }
+
+    memory.used_kb = memory.total_kb.saturating_sub(memory.available_kb);
+    memory.usage_pct = if memory.total_kb > 0 {
+        (memory.used_kb as f64 / memory.total_kb as f64 * 100.0).clamp(0.0, 100.0)
+    } else {
+        0.0
+    };
+
+    if let Ok(content) = fs::read_to_string("/proc/vmstat") {
+        memory.vm_pgfault = parse_vmstat_counter(&content, "pgfault");
+        memory.vm_pgmajfault = parse_vmstat_counter(&content, "pgmajfault");
+        memory.vm_pgpgin = parse_vmstat_counter(&content, "pgpgin");
+        memory.vm_pgpgout = parse_vmstat_counter(&content, "pgpgout");
+        memory.vm_pswpin = parse_vmstat_counter(&content, "pswpin");
+        memory.vm_pswpout = parse_vmstat_counter(&content, "pswpout");
+        memory.vm_pgscan = parse_vmstat_sum(&content, "pgscan_");
+        memory.vm_pgsteal = parse_vmstat_sum(&content, "pgsteal_");
+    }
+
+    Ok(memory)
+}
+
+// ─── System ───────────────────────────────────────────────────────────────────
+
+pub fn read_system() -> Result<RawSystemInfo> {
+    Ok(RawSystemInfo {
+        hostname: fs::read_to_string("/proc/sys/kernel/hostname")
+            .unwrap_or_default()
+            .trim()
+            .to_string(),
+        os_name: std::env::consts::OS.to_string(),
+        os_version: fs::read_to_string("/etc/os-release")
+            .unwrap_or_default()
+            .lines()
+            .find(|l| l.starts_with("PRETTY_NAME="))
+            .map(|l| {
+                l.trim_start_matches("PRETTY_NAME=")
+                    .trim_matches('"')
+                    .to_string()
+            })
+            .unwrap_or_else(|| "Linux".to_string()),
+        kernel_version: fs::read_to_string("/proc/version")
+            .unwrap_or_default()
+            .split_whitespace()
+            .nth(2)
+            .unwrap_or("unknown")
+            .to_string(),
+        uptime_seconds: fs::read_to_string("/proc/uptime")
+            .unwrap_or_default()
+            .split_whitespace()
+            .next()
+            .and_then(|s| s.parse::<f64>().ok())
+            .map(|f| f as u64)
+            .unwrap_or(0),
+        cpu_count: {
+            let n = unsafe { libc::sysconf(libc::_SC_NPROCESSORS_ONLN) };
+            if n > 0 {
+                n as u32
+            } else {
+                1
+            }
+        },
+        architecture: std::env::consts::ARCH.to_string(),
+    })
+}
+
+// ─── Linux-specific metrics ──────────────────────────────────────────────────
+
+pub fn read_linux_metrics() -> Result<RawLinuxMetrics> {
+    Ok(RawLinuxMetrics {
+        cgroup: read_cgroup_v2_metrics(),
+        psi: read_psi_metrics(),
+    })
+}
+
+fn read_cgroup_v2_metrics() -> Option<RawCgroupMetrics> {
+    let cgroup_root = Path::new("/sys/fs/cgroup");
+    if !cgroup_root.join("cgroup.controllers").exists() {
+        return None;
+    }
+
+    let relative_path = parse_cgroup_v2_path(&fs::read_to_string("/proc/self/cgroup").ok()?)?;
+    let full_path = join_cgroup_path(cgroup_root, &relative_path);
+
+    let memory_current_bytes = read_u64_file(&full_path.join("memory.current")).unwrap_or(0);
+    let memory_max_bytes = read_limit_u64_file(&full_path.join("memory.max"));
+    let memory_swap_current_bytes =
+        read_u64_file(&full_path.join("memory.swap.current")).unwrap_or(0);
+    let memory_swap_max_bytes = read_limit_u64_file(&full_path.join("memory.swap.max"));
+    let pids_current = read_u64_file(&full_path.join("pids.current")).unwrap_or(0);
+    let pids_max = read_limit_u64_file(&full_path.join("pids.max"));
+
+    let cpu_stat = parse_cpu_stat(&fs::read_to_string(full_path.join("cpu.stat")).ok()?);
+    let (cpu_quota_usec, cpu_period_usec) =
+        parse_cpu_max(&fs::read_to_string(full_path.join("cpu.max")).unwrap_or_default());
+
+    let memory_usage_pct = memory_max_bytes
+        .filter(|max| *max > 0)
+        .map(|max| (memory_current_bytes as f64 / max as f64 * 100.0).clamp(0.0, 100.0))
+        .unwrap_or(0.0);
+
+    Some(RawCgroupMetrics {
+        version: 2,
+        path: relative_path,
+        memory_current_bytes,
+        memory_max_bytes,
+        memory_swap_current_bytes,
+        memory_swap_max_bytes,
+        memory_usage_pct,
+        pids_current,
+        pids_max,
+        cpu_usage_usec: cpu_stat.0,
+        cpu_user_usec: cpu_stat.1,
+        cpu_system_usec: cpu_stat.2,
+        cpu_nr_periods: cpu_stat.3,
+        cpu_nr_throttled: cpu_stat.4,
+        cpu_throttled_usec: cpu_stat.5,
+        cpu_quota_usec,
+        cpu_period_usec,
+    })
+}
+
+fn read_psi_metrics() -> Option<RawPsiMetrics> {
+    let cpu = read_pressure_metric(Path::new("/proc/pressure/cpu"));
+    let memory = read_pressure_metric(Path::new("/proc/pressure/memory"));
+    let io = read_pressure_metric(Path::new("/proc/pressure/io"));
+
+    if cpu.is_none() && memory.is_none() && io.is_none() {
+        return None;
+    }
+
+    Some(RawPsiMetrics {
+        cpu: cpu.unwrap_or_default(),
+        memory: memory.unwrap_or_default(),
+        io: io.unwrap_or_default(),
+    })
+}
+
+fn read_pressure_metric(path: &Path) -> Option<RawPressureMetric> {
+    parse_pressure_metric(&fs::read_to_string(path).ok()?)
+}
+
+fn parse_pressure_metric(content: &str) -> Option<RawPressureMetric> {
+    let mut metric = RawPressureMetric::default();
+
+    for line in content.lines() {
+        let (kind, window) = parse_pressure_line(line)?;
+        match kind {
+            "some" => metric.some = Some(window),
+            "full" => metric.full = Some(window),
+            _ => {}
+        }
+    }
+
+    if metric.some.is_none() && metric.full.is_none() {
+        None
+    } else {
+        Some(metric)
+    }
+}
+
+fn parse_pressure_line(line: &str) -> Option<(&str, RawPressureWindow)> {
+    let mut parts = line.split_whitespace();
+    let kind = parts.next()?;
+
+    let mut window = RawPressureWindow::default();
+    for part in parts {
+        let (key, value) = part.split_once('=')?;
+        match key {
+            "avg10" => window.avg10 = value.parse().ok()?,
+            "avg60" => window.avg60 = value.parse().ok()?,
+            "avg300" => window.avg300 = value.parse().ok()?,
+            "total" => window.total = value.parse().ok()?,
+            _ => {}
+        }
+    }
+
+    Some((kind, window))
+}
+
+fn parse_cgroup_v2_path(content: &str) -> Option<String> {
+    content.lines().find_map(|line| {
+        let mut parts = line.splitn(3, ':');
+        let hierarchy = parts.next()?;
+        let controllers = parts.next()?;
+        let path = parts.next()?;
+        if hierarchy == "0" && controllers.is_empty() {
+            Some(path.to_string())
+        } else {
+            None
+        }
+    })
+}
+
+fn join_cgroup_path(root: &Path, relative_path: &str) -> PathBuf {
+    if relative_path == "/" {
+        root.to_path_buf()
+    } else {
+        root.join(relative_path.trim_start_matches('/'))
+    }
+}
+
+fn read_u64_file(path: &Path) -> Option<u64> {
+    fs::read_to_string(path).ok()?.trim().parse().ok()
+}
+
+fn read_limit_u64_file(path: &Path) -> Option<u64> {
+    parse_limit_u64(&fs::read_to_string(path).ok()?)
+}
+
+fn parse_limit_u64(content: &str) -> Option<u64> {
+    let trimmed = content.trim();
+    if trimmed == "max" || trimmed.is_empty() {
+        None
+    } else {
+        trimmed.parse().ok()
+    }
+}
+
+fn parse_cpu_stat(content: &str) -> (u64, u64, u64, u64, u64, u64) {
+    let mut usage_usec = 0;
+    let mut user_usec = 0;
+    let mut system_usec = 0;
+    let mut nr_periods = 0;
+    let mut nr_throttled = 0;
+    let mut throttled_usec = 0;
+
+    for line in content.lines() {
+        let mut parts = line.split_whitespace();
+        let Some(key) = parts.next() else {
+            continue;
+        };
+        let Some(value) = parts.next().and_then(|value| value.parse::<u64>().ok()) else {
+            continue;
+        };
+
+        match key {
+            "usage_usec" => usage_usec = value,
+            "user_usec" => user_usec = value,
+            "system_usec" => system_usec = value,
+            "nr_periods" => nr_periods = value,
+            "nr_throttled" => nr_throttled = value,
+            "throttled_usec" => throttled_usec = value,
+            _ => {}
+        }
+    }
+
+    (
+        usage_usec,
+        user_usec,
+        system_usec,
+        nr_periods,
+        nr_throttled,
+        throttled_usec,
+    )
+}
+
+fn parse_cpu_max(content: &str) -> (Option<u64>, Option<u64>) {
+    let mut parts = content.split_whitespace();
+    let quota = parts.next().and_then(parse_cpu_max_part);
+    let period = parts.next().and_then(parse_cpu_max_part);
+    (quota, period)
+}
+
+fn parse_cpu_max_part(part: &str) -> Option<u64> {
+    if part == "max" {
+        None
+    } else {
+        part.parse().ok()
+    }
+}
+
+fn parse_socket_table(content: &str, is_udp: bool, connections: &mut RawNetConnections) {
+    for line in content.lines().skip(1) {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 4 {
+            continue;
+        }
+
+        let state = parts[3];
+        if is_udp {
+            connections.udp_total += 1;
+            match state {
+                "01" => connections.udp_established += 1,
+                "07" => connections.udp_close += 1,
+                _ => connections.udp_other += 1,
+            }
+        } else {
+            connections.total += 1;
+            match state {
+                "01" => connections.established += 1,
+                "02" => connections.tcp_syn_sent += 1,
+                "03" => connections.tcp_syn_recv += 1,
+                "04" => connections.tcp_fin_wait1 += 1,
+                "05" => connections.tcp_fin_wait2 += 1,
+                "06" => connections.tcp_time_wait += 1,
+                "07" => connections.tcp_close += 1,
+                "08" => connections.tcp_close_wait += 1,
+                "09" => connections.tcp_last_ack += 1,
+                "0A" => connections.tcp_listen += 1,
+                "0B" => connections.tcp_closing += 1,
+                _ => connections.tcp_other += 1,
+            }
+        }
+    }
+}
+
+fn read_snmp_counter(path: &str, section: &str, field: &str) -> Option<u64> {
+    let content = fs::read_to_string(path).ok()?;
+    let mut lines = content.lines();
+
+    while let Some(header) = lines.next() {
+        let values = lines.next()?;
+        let Some(header_body) = header.strip_prefix(&format!("{section}:")) else {
+            continue;
+        };
+        let Some(value_body) = values.strip_prefix(&format!("{section}:")) else {
+            continue;
+        };
+
+        let headers: Vec<&str> = header_body.split_whitespace().collect();
+        let values: Vec<&str> = value_body.split_whitespace().collect();
+        let index = headers.iter().position(|name| *name == field)?;
+        return values.get(index).and_then(|value| value.parse().ok());
+    }
+
+    None
+}
+
+fn parse_vmstat_counter(content: &str, key: &str) -> u64 {
+    content
+        .lines()
+        .find_map(|line| {
+            let mut parts = line.split_whitespace();
+            let name = parts.next()?;
+            let value = parts.next()?.parse::<u64>().ok()?;
+            if name == key {
+                Some(value)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(0)
+}
+
+fn parse_vmstat_sum(content: &str, prefix: &str) -> u64 {
+    content
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.split_whitespace();
+            let name = parts.next()?;
+            let value = parts.next()?.parse::<u64>().ok()?;
+            if name.starts_with(prefix) {
+                Some(value)
+            } else {
+                None
+            }
+        })
+        .sum()
+}
+
+// ─── Process ──────────────────────────────────────────────────────────────────
+
+pub fn page_size() -> u64 {
+    unsafe { libc::sysconf(libc::_SC_PAGESIZE) as u64 }
+}
+
+pub fn clock_ticks() -> f64 {
+    unsafe { libc::sysconf(libc::_SC_CLK_TCK) as f64 }
+}
+
+pub fn num_cpus() -> f64 {
+    let n = unsafe { libc::sysconf(libc::_SC_NPROCESSORS_ONLN) };
+    if n > 0 {
+        n as f64
+    } else {
+        1.0
+    }
+}
+
+fn uid_to_user(pid: u32) -> String {
+    use std::os::unix::fs::MetadataExt;
+    let meta = fs::metadata(format!("/proc/{}", pid)).ok();
+    if let Some(m) = meta {
+        let uid = m.uid();
+        if let Ok(passwd) = fs::read_to_string("/etc/passwd") {
+            for line in passwd.lines() {
+                let parts: Vec<&str> = line.split(':').collect();
+                if parts.len() >= 3 && parts[2].parse::<u32>().ok() == Some(uid) {
+                    return parts[0].to_string();
+                }
+            }
+        }
+        return uid.to_string();
+    }
+    String::new()
+}
+
+pub fn read_processes() -> Result<Vec<RawProcReading>> {
+    let proc_dir = fs::read_dir("/proc")?;
+    let mut result = Vec::new();
+
+    for entry in proc_dir.flatten() {
+        let fname = entry.file_name();
+        let pid_str = fname.to_string_lossy();
+        let pid: u32 = match pid_str.parse() {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+
+        let stat = match fs::read_to_string(format!("/proc/{}/stat", pid)) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let start = match stat.find('(') {
+            Some(p) => p,
+            None => continue,
+        };
+        let end = match stat.rfind(')') {
+            Some(p) => p,
+            None => continue,
+        };
+        let name = stat[start + 1..end].to_string();
+        let rest: Vec<&str> = stat[end + 2..].split_whitespace().collect();
+
+        let state_char = rest.first().and_then(|s| s.chars().next()).unwrap_or('?');
+        let utime: u64 = rest.get(11).and_then(|v| v.parse().ok()).unwrap_or(0);
+        let stime: u64 = rest.get(12).and_then(|v| v.parse().ok()).unwrap_or(0);
+        let vsize: u64 = rest.get(20).and_then(|v| v.parse().ok()).unwrap_or(0);
+        let rss: u64 = rest.get(21).and_then(|v| v.parse().ok()).unwrap_or(0);
+        let threads: u32 = rest.get(17).and_then(|v| v.parse().ok()).unwrap_or(0);
+
+        let cmdline = fs::read_to_string(format!("/proc/{}/cmdline", pid))
+            .unwrap_or_default()
+            .replace('\0', " ")
+            .trim()
+            .to_string();
+
+        let (io_read_bytes, io_write_bytes) = {
+            let io = fs::read_to_string(format!("/proc/{}/io", pid)).unwrap_or_default();
+            let mut rb = 0u64;
+            let mut wb = 0u64;
+            for line in io.lines() {
+                if line.starts_with("read_bytes:") {
+                    rb = line
+                        .split_whitespace()
+                        .nth(1)
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(0);
+                } else if line.starts_with("write_bytes:") {
+                    wb = line
+                        .split_whitespace()
+                        .nth(1)
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(0);
+                }
+            }
+            (rb, wb)
+        };
+
+        result.push(RawProcReading {
+            pid,
+            name,
+            cmdline,
+            utime,
+            stime,
+            vsize,
+            rss,
+            threads,
+            fd_count: fs::read_dir(format!("/proc/{}/fd", pid))
+                .map(|d| d.count() as u32)
+                .unwrap_or(0),
+            state_char,
+            user: uid_to_user(pid),
+            io_read_bytes,
+            io_write_bytes,
+            cpu_pct_hint: None,
+        });
+    }
+    Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_pressure_lines() {
+        let (kind, window) =
+            parse_pressure_line("some avg10=1.23 avg60=0.45 avg300=0.67 total=890").unwrap();
+
+        assert_eq!(kind, "some");
+        assert!((window.avg10 - 1.23).abs() < f64::EPSILON);
+        assert!((window.avg60 - 0.45).abs() < f64::EPSILON);
+        assert!((window.avg300 - 0.67).abs() < f64::EPSILON);
+        assert_eq!(window.total, 890);
+    }
+
+    #[test]
+    fn parses_pressure_metrics_with_some_and_full() {
+        let metric = parse_pressure_metric(
+            "some avg10=1.00 avg60=2.00 avg300=3.00 total=4\nfull avg10=5.00 avg60=6.00 avg300=7.00 total=8\n",
+        )
+        .unwrap();
+
+        assert_eq!(metric.some.unwrap().total, 4);
+        assert_eq!(metric.full.unwrap().total, 8);
+    }
+
+    #[test]
+    fn parses_cgroup_v2_path() {
+        let path = parse_cgroup_v2_path("0::/user.slice/app.slice/pulsar.service\n").unwrap();
+        assert_eq!(path, "/user.slice/app.slice/pulsar.service");
+    }
+
+    #[test]
+    fn parses_limit_values() {
+        assert_eq!(parse_limit_u64("12345\n"), Some(12345));
+        assert_eq!(parse_limit_u64("max\n"), None);
+    }
+
+    #[test]
+    fn parses_cpu_max_values() {
+        assert_eq!(parse_cpu_max("max 100000"), (None, Some(100000)));
+        assert_eq!(parse_cpu_max("20000 100000"), (Some(20000), Some(100000)));
+    }
+
+    #[test]
+    fn parses_vmstat_counters_and_prefix_sums() {
+        let content = "pgfault 10\npgmajfault 2\npgscan_kswapd 5\npgscan_direct 7\n";
+        assert_eq!(parse_vmstat_counter(content, "pgfault"), 10);
+        assert_eq!(parse_vmstat_counter(content, "pgmajfault"), 2);
+        assert_eq!(parse_vmstat_sum(content, "pgscan_"), 12);
+    }
+
+    #[test]
+    fn parses_socket_tables_into_state_buckets() {
+        let tcp = "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n   0: 00000000:0016 00000000:0000 0A 00000000:00000000 00:00000000 00000000   100        0 1 1 0000000000000000 100 0 0 10 0\n   1: 0100007F:9C40 0100007F:1F90 01 00000000:00000000 00:00000000 00000000   100        0 1 1 0000000000000000 100 0 0 10 0\n";
+        let udp = "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode ref pointer drops\n   0: 00000000:0035 00000000:0000 07 00000000:00000000 00:00000000 00000000   0        0 1 2 0000000000000000 0\n";
+        let mut connections = RawNetConnections::default();
+
+        parse_socket_table(tcp, false, &mut connections);
+        parse_socket_table(udp, true, &mut connections);
+
+        assert_eq!(connections.total, 2);
+        assert_eq!(connections.established, 1);
+        assert_eq!(connections.tcp_listen, 1);
+        assert_eq!(connections.udp_total, 1);
+        assert_eq!(connections.udp_close, 1);
+    }
+}

@@ -1,0 +1,7 @@
+pub mod alerts_widget;
+pub mod cpu_widget;
+pub mod disk_widget;
+pub mod linux_widget;
+pub mod memory_widget;
+pub mod network_widget;
+pub mod process_widget;

@@ -1,0 +1,12 @@
+[Unit]
+Description=Pulsar observability agent
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=__PULSAR_RUNNER__
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

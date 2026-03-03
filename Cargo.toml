@@ -1,0 +1,72 @@
+[package]
+name        = "pulsar"
+version     = "0.1.0"
+edition     = "2021"
+authors     = ["Kevin Vanden-Brande <kevin@kvdb.dev>"]
+license     = "Apache-2.0"
+description = "Modern cross-platform system observability engine"
+repository  = "https://github.com/kvdb/pulsar"
+keywords    = ["monitoring", "observability", "system", "nmon", "prometheus"]
+categories  = ["command-line-utilities", "os"]
+readme      = "README.md"
+
+[[bin]]
+name = "pulsar"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Sérialisation
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+
+# Configuration
+toml = "0.8"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# TUI
+ratatui   = "0.29"
+crossterm = "0.28"
+
+# HTTP API
+axum = "0.8"
+
+# Temps
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging interne
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Gestion erreurs
+anyhow    = "1"
+thiserror = "2"
+
+# Async trait + cancellation
+async-trait  = "0.1"
+tokio-util   = { version = "0.7", features = ["rt"] }
+
+# Syscalls (Linux statvfs, sysconf)
+libc = "0.2"
+
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.61", features = [
+    "Win32_System_SystemInformation",
+    "Win32_System_Performance",
+    "Win32_System_Threading",
+    "Win32_Foundation",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"
+
+[profile.release]
+opt-level     = 3
+lto           = true
+codegen-units = 1
+strip         = true

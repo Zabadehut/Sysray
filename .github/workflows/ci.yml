@@ -1,0 +1,217 @@
+name: Pulsar CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    name: Lint - ubuntu-latest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+  linux-matrix:
+    name: Linux Matrix - ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu-22.04-gnu
+            runner: ubuntu-22.04
+            rust_targets: ""
+            build_command: cargo build --locked
+            test_command: cargo test --locked
+            snapshot_command: cargo run --locked -- snapshot --format json
+          - name: ubuntu-24.04-gnu
+            runner: ubuntu-24.04
+            rust_targets: ""
+            build_command: cargo build --locked
+            test_command: cargo test --locked
+            snapshot_command: cargo run --locked -- snapshot --format json
+          - name: ubuntu-24.04-musl-check
+            runner: ubuntu-24.04
+            rust_targets: x86_64-unknown-linux-musl
+            build_command: cargo check --locked --target x86_64-unknown-linux-musl
+            test_command: ""
+            snapshot_command: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        if: ${{ matrix.rust_targets == '' }}
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust With Targets
+        if: ${{ matrix.rust_targets != '' }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: ${{ matrix.build_command }}
+
+      - name: Test
+        if: ${{ matrix.test_command != '' }}
+        run: ${{ matrix.test_command }}
+
+      - name: Snapshot Smoke Test
+        if: ${{ matrix.snapshot_command != '' }}
+        run: ${{ matrix.snapshot_command }}
+
+  test:
+    name: Test - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --locked
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Snapshot Smoke Test
+        run: cargo run --locked -- snapshot --format json
+
+      - name: Prometheus Smoke Test
+        run: cargo run --locked -- snapshot --format prometheus
+
+  service-validation:
+    name: Service Validation - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --locked
+
+      - name: Validate Linux/macOS service flow
+        if: ${{ runner.os != 'Windows' }}
+        run: bash ./scripts/validate-service-flow.sh
+
+      - name: Validate Windows service flow
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: ./scripts/validate-service-flow.ps1
+
+  cross-check:
+    name: Cross Check - ubuntu-latest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,x86_64-pc-windows-msvc
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check macOS target
+        run: cargo check --locked --target x86_64-apple-darwin
+
+      - name: Check Windows target
+        run: cargo check --locked --target x86_64-pc-windows-msvc
+
+  package:
+    name: Package - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Import optional GPG signing key
+        if: ${{ secrets.PULSAR_GPG_PRIVATE_KEY != '' && secrets.PULSAR_GPG_KEY_ID != '' }}
+        shell: bash
+        run: |
+          if command -v gpg >/dev/null 2>&1; then
+            temp_key="${RUNNER_TEMP}/pulsar-release.key"
+            if base64 --help 2>/dev/null | grep -q -- '--decode'; then
+              printf '%s' '${{ secrets.PULSAR_GPG_PRIVATE_KEY }}' | base64 --decode > "$temp_key"
+            else
+              printf '%s' '${{ secrets.PULSAR_GPG_PRIVATE_KEY }}' | base64 -D > "$temp_key"
+            fi
+            gpg --batch --import "$temp_key"
+            echo "PULSAR_GPG_KEY_ID=${{ secrets.PULSAR_GPG_KEY_ID }}" >> "$GITHUB_ENV"
+          else
+            echo "gpg not available on this runner; packaging will continue without signature"
+          fi
+
+      - name: Build release artifacts
+        shell: bash
+        run: ./scripts/build-complete.sh
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulsar-dist-${{ matrix.os }}
+          path: dist/
+          if-no-files-found: error
