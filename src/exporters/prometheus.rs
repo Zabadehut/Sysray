@@ -223,9 +223,19 @@ impl Exporter for PrometheusExporter {
                 "# HELP pulsar_disk_merged_ops_per_sec Merged disk operations per second\n",
             );
             out.push_str("# TYPE pulsar_disk_merged_ops_per_sec gauge\n");
+            out.push_str("# HELP pulsar_disk_info Portable disk classification hints\n");
+            out.push_str("# TYPE pulsar_disk_info gauge\n");
         }
         for disk in &snapshot.disks {
-            let lbl = format!(r#"device="{}",mount="{}""#, disk.device, disk.mount_point);
+            let lbl = format!(
+                r#"device="{}",mount="{}",structure="{}",protocol="{}",media="{}""#,
+                escape_label(&disk.device),
+                escape_label(&disk.mount_point),
+                escape_label(&disk.structure_hint),
+                escape_label(&disk.protocol_hint),
+                escape_label(&disk.media_hint)
+            );
+            out.push_str(&format!("pulsar_disk_info{{{}}} 1\n", lbl));
             out.push_str(&format!(
                 "pulsar_disk_used_bytes{{{}}} {:.0}\n",
                 lbl,
@@ -323,7 +333,10 @@ impl Exporter for PrometheusExporter {
         for net in &snapshot.networks {
             let lbl = format!(
                 r#"interface="{}",topology="{}",family="{}",medium="{}""#,
-                net.interface, net.topology_hint, net.family_hint, net.medium_hint
+                escape_label(&net.interface),
+                escape_label(&net.topology_hint),
+                escape_label(&net.family_hint),
+                escape_label(&net.medium_hint)
             );
             out.push_str(&format!("pulsar_network_interface_info{{{}}} 1\n", lbl));
             out.push_str(&format!(

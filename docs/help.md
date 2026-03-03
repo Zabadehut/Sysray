@@ -19,6 +19,11 @@ Current commands:
 - `pulsar explain <TERM> [--lang fr|en] [--audience beginner|expert]`
 - `pulsar service install|status|uninstall`
 
+HTTP inventory helper:
+
+- `/snapshot` returns the full structured snapshot
+- `/inventory` returns host, disk, and network inventory hints for structure/protocol/media/topology
+
 Benchmark helper:
 
 - `./scripts/benchmark-overhead-linux.sh --duration 30 --interval 5 --snapshot-count 25`

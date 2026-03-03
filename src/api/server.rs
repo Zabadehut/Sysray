@@ -36,6 +36,7 @@ pub async fn run_server(
     let app = Router::new()
         .route("/metrics", get(metrics_handler))
         .route("/snapshot", get(snapshot_handler))
+        .route("/inventory", get(inventory_handler))
         .route("/health", get(health_handler))
         .route("/reference", get(reference_handler))
         .with_state(state);
@@ -58,6 +59,45 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
 
 async fn snapshot_handler(State(state): State<AppState>) -> impl IntoResponse {
     Json(state.latest.read().await.clone())
+}
+
+#[derive(Serialize)]
+struct InventoryResponse {
+    host: Option<InventoryHost>,
+    disks: Vec<DiskInventoryView>,
+    networks: Vec<NetworkInventoryView>,
+}
+
+#[derive(Serialize)]
+struct InventoryHost {
+    hostname: String,
+    os_name: String,
+    os_version: String,
+    kernel_version: String,
+    architecture: String,
+}
+
+#[derive(Serialize)]
+struct DiskInventoryView {
+    device: String,
+    mount_point: String,
+    structure: String,
+    protocol: String,
+    media: String,
+    total_gb: f64,
+    used_gb: f64,
+    free_gb: f64,
+    usage_pct: f64,
+}
+
+#[derive(Serialize)]
+struct NetworkInventoryView {
+    interface: String,
+    topology: String,
+    family: String,
+    medium: String,
+    connections_total: u32,
+    connections_established: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -108,6 +148,55 @@ async fn health_handler(State(state): State<AppState>) -> impl IntoResponse {
     };
 
     (code, Json(HealthResponse { status, collectors }))
+}
+
+async fn inventory_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let snapshot = state.latest.read().await.clone();
+    let host = snapshot.system.as_ref().map(|system| InventoryHost {
+        hostname: system.hostname.clone(),
+        os_name: system.os_name.clone(),
+        os_version: system.os_version.clone(),
+        kernel_version: system.kernel_version.clone(),
+        architecture: system.architecture.clone(),
+    });
+
+    let disks = snapshot
+        .disks
+        .iter()
+        .map(|disk| DiskInventoryView {
+            device: disk.device.clone(),
+            mount_point: disk.mount_point.clone(),
+            structure: disk.structure_hint.clone(),
+            protocol: disk.protocol_hint.clone(),
+            media: disk.media_hint.clone(),
+            total_gb: disk.total_gb,
+            used_gb: disk.used_gb,
+            free_gb: disk.free_gb,
+            usage_pct: disk.usage_pct,
+        })
+        .collect();
+
+    let networks = snapshot
+        .networks
+        .iter()
+        .map(|net| NetworkInventoryView {
+            interface: net.interface.clone(),
+            topology: net.topology_hint.clone(),
+            family: net.family_hint.clone(),
+            medium: net.medium_hint.clone(),
+            connections_total: net.connections_total,
+            connections_established: net.connections_established,
+        })
+        .collect();
+
+    (
+        StatusCode::OK,
+        Json(InventoryResponse {
+            host,
+            disks,
+            networks,
+        }),
+    )
 }
 
 async fn reference_handler(Query(query): Query<ReferenceQuery>) -> impl IntoResponse {

@@ -148,6 +148,24 @@ impl Exporter for CsvExporter {
         for disk in &snapshot.disks {
             let device = metric_label(&disk.device);
             out.push_str(&format!(
+                "{},disk.{}.structure.{},1\n",
+                snapshot.timestamp,
+                device,
+                metric_label(&disk.structure_hint)
+            ));
+            out.push_str(&format!(
+                "{},disk.{}.protocol.{},1\n",
+                snapshot.timestamp,
+                device,
+                metric_label(&disk.protocol_hint)
+            ));
+            out.push_str(&format!(
+                "{},disk.{}.media.{},1\n",
+                snapshot.timestamp,
+                device,
+                metric_label(&disk.media_hint)
+            ));
+            out.push_str(&format!(
                 "{},disk.{}.usage_pct,{:.2}\n",
                 snapshot.timestamp, device, disk.usage_pct
             ));
