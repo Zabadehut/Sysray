@@ -18,6 +18,11 @@ Current commands:
 - `pulsar replay <FILE>`
 - `pulsar service install|status|uninstall`
 
+Benchmark helper:
+
+- `./scripts/benchmark-overhead-linux.sh --duration 30 --interval 5 --snapshot-count 25`
+- current Linux baseline result is documented in `docs/benchmarking.md`
+
 ## Command Notes
 
 ### `record`
@@ -108,6 +113,7 @@ Constraints for that future archive path:
 ## Documentation Map
 
 - `docs/community-cheatsheet.md`
+- `docs/benchmarking.md`
 - `docs/enterprise-cheatsheet.md`
 - `docs/cross-os-cheatsheet.md`
 - `docs/product-scope.md`

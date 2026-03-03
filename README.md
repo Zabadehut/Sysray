@@ -184,6 +184,7 @@ Key design points:
 Detailed planning documents:
 
 - [`docs/help.md`](docs/help.md)
+- [`docs/benchmarking.md`](docs/benchmarking.md)
 - [`docs/product-scope.md`](docs/product-scope.md)
 - [`docs/metrics-matrix.md`](docs/metrics-matrix.md)
 - [`docs/metrics-checklist.md`](docs/metrics-checklist.md)
@@ -264,6 +265,18 @@ Enterprise should add operational guarantees around the core, not replace the co
 ```bash
 cargo build
 ```
+
+## Benchmarking
+
+Use the Linux benchmark harness to measure local overhead before making performance claims:
+
+```bash
+./scripts/benchmark-overhead-linux.sh --duration 30 --interval 5 --snapshot-count 25
+```
+
+Results are written under `.benchmarks/<UTC_RUN_ID>/` with both `summary.md` and `summary.csv`.
+
+On the March 3, 2026 Rocky Linux baseline run (`30s`, `5s`, `25` snapshots), `pulsar record` measured about `0.35%` average CPU and `~13 MB` RSS, while repeated one-shot JSON snapshots measured about `0.83%` average CPU with a similar peak RSS. See [`docs/benchmarking.md`](docs/benchmarking.md).
 
 `cargo build` only rebuilds the workspace binary in `target/debug/`.
 It does not update the user service binary installed in `~/.local/bin/pulsar`.
