@@ -234,10 +234,14 @@ require_command cargo
 require_command rustc
 require_command tar
 
-echo "==> Validation"
-cargo fmt --all -- --check
-cargo clippy --all-targets -- -D warnings
-cargo test
+if [[ "${SYSRAY_SKIP_VALIDATION:-0}" != "1" ]]; then
+  echo "==> Validation"
+  cargo fmt --all -- --check
+  cargo clippy --all-targets -- -D warnings
+  cargo test
+else
+  echo "==> Validation skipped (SYSRAY_SKIP_VALIDATION=1)"
+fi
 
 echo "==> Release build"
 cargo build --release

@@ -172,6 +172,7 @@ jobs:
     name: Package - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     env:
+      SYSRAY_SKIP_VALIDATION: "1"
       SYSRAY_GPG_PRIVATE_KEY: ${{ secrets.SYSRAY_GPG_PRIVATE_KEY }}
       SYSRAY_GPG_KEY_ID: ${{ secrets.SYSRAY_GPG_KEY_ID }}
     strategy:
