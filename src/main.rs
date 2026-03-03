@@ -103,6 +103,7 @@ fn build_registry(config: &Config) -> Registry {
     let mut r = Registry::new();
     let col = &config.collectors;
     let secs = |n: u64| Duration::from_secs(n);
+    let logs_disabled = std::env::var_os("SYSRAY_DISABLE_LOGS").is_some();
 
     if col.cpu {
         r.register(CpuCollector::new(), secs(col.cpu_interval_secs));
@@ -125,10 +126,12 @@ fn build_registry(config: &Config) -> Registry {
     r.register(SystemCollector::new(), secs(col.system_interval_secs));
     #[cfg(target_os = "linux")]
     r.register(LinuxCollector::new(), secs(col.system_interval_secs));
-    r.register(
-        LogsCollector::new(config.logs.clone()),
-        secs(col.system_interval_secs),
-    );
+    if !logs_disabled {
+        r.register(
+            LogsCollector::new(config.logs.clone()),
+            secs(col.system_interval_secs),
+        );
+    }
     r
 }
 
