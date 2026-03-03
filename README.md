@@ -5,7 +5,7 @@
 Pulsar is a system observability engine written in Rust.
 It is being built as a modern replacement for legacy local monitoring tools such as NMON: single binary, low overhead, cross-platform by design, and extensible from day one.
 
-Current workspace version: `0.2.0`
+Current workspace version: `0.3.0`
 
 ## Positioning
 
@@ -93,6 +93,14 @@ Overview TUI:
 Expert network view:
 
 ![Pulsar expert network diagnostics](docs/screenshots/tui-expert-network-real.svg)
+
+Expert JVM view:
+
+![Pulsar expert JVM diagnostics](docs/screenshots/tui-expert-jvm-real.svg)
+
+Expert disk view:
+
+![Pulsar expert disk diagnostics](docs/screenshots/tui-expert-disk-real.svg)
 
 These captures are generated from real terminal frames with:
 

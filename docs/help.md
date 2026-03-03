@@ -45,7 +45,9 @@ Index behavior:
 - `network+` exposes interface ranking and socket/TCP state breakdown
 - `network+` also exposes session lenses (`handshake`, `closing backlog`, `loss path`)
 - `jvm+` exposes JVM hotspots plus runtime profiles (`role`, dominant pressure, heap hint)
+- `pressure+` also exposes pressure lenses (`reclaim`, `swap`, `host/cgroup gap`, stall mixes)
 - `disk+` exposes hot disks plus waiters/IO correlation
+- `disk+` also exposes contention lenses (`busy`, `latency`, `queue`, waiter pressure`)
 
 Product boundary reminder:
 

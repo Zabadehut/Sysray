@@ -263,7 +263,11 @@ fn render_pressure_drilldown(
     let right_rows = if detailed {
         Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(62), Constraint::Percentage(38)])
+            .constraints([
+                Constraint::Percentage(42),
+                Constraint::Percentage(30),
+                Constraint::Percentage(28),
+            ])
             .split(cols[1])
     } else {
         Layout::default()
@@ -273,13 +277,24 @@ fn render_pressure_drilldown(
     };
 
     render_process_pressure_table(frame, right_rows[0], snapshot, locale, detailed, theme);
-    render_focus_notes(
-        frame,
-        right_rows[1],
-        text(locale, " ◉ LECTURE ", " ◉ READING "),
-        pressure_focus_lines(snapshot, locale, theme),
-        theme,
-    );
+    if detailed {
+        render_pressure_lens_table(frame, right_rows[1], snapshot, locale, theme);
+        render_focus_notes(
+            frame,
+            right_rows[2],
+            text(locale, " ◉ LECTURE ", " ◉ READING "),
+            pressure_focus_lines(snapshot, locale, theme),
+            theme,
+        );
+    } else {
+        render_focus_notes(
+            frame,
+            right_rows[1],
+            text(locale, " ◉ LECTURE ", " ◉ READING "),
+            pressure_focus_lines(snapshot, locale, theme),
+            theme,
+        );
+    }
 }
 
 fn render_network_drilldown(
@@ -404,7 +419,11 @@ fn render_disk_drilldown(
     let right_rows = if detailed {
         Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+            .constraints([
+                Constraint::Percentage(42),
+                Constraint::Percentage(30),
+                Constraint::Percentage(28),
+            ])
             .split(cols[1])
     } else {
         Layout::default()
@@ -414,13 +433,24 @@ fn render_disk_drilldown(
     };
 
     render_disk_waiter_table(frame, right_rows[0], snapshot, locale, detailed, theme);
-    render_focus_notes(
-        frame,
-        right_rows[1],
-        text(locale, " ◉ CONTENTION ", " ◉ CONTENTION "),
-        disk_focus_lines(snapshot, locale, theme),
-        theme,
-    );
+    if detailed {
+        render_disk_lens_table(frame, right_rows[1], snapshot, locale, theme);
+        render_focus_notes(
+            frame,
+            right_rows[2],
+            text(locale, " ◉ CONTENTION ", " ◉ CONTENTION "),
+            disk_focus_lines(snapshot, locale, theme),
+            theme,
+        );
+    } else {
+        render_focus_notes(
+            frame,
+            right_rows[1],
+            text(locale, " ◉ CONTENTION ", " ◉ CONTENTION "),
+            disk_focus_lines(snapshot, locale, theme),
+            theme,
+        );
+    }
 }
 
 fn render_process_pressure_table(
@@ -484,6 +514,94 @@ fn render_process_pressure_table(
             Constraint::Length(7),
             Constraint::Length(5),
         ],
+        theme,
+    );
+    frame.render_widget(table, area);
+}
+
+fn render_pressure_lens_table(
+    frame: &mut Frame,
+    area: Rect,
+    snapshot: &Snapshot,
+    locale: Locale,
+    theme: &Theme,
+) {
+    let memory = snapshot.memory.as_ref();
+    let cgroup = snapshot
+        .linux
+        .as_ref()
+        .and_then(|linux| linux.cgroup.as_ref());
+    let psi = snapshot.linux.as_ref().and_then(|linux| linux.psi.as_ref());
+    let cpu = snapshot.cpu.as_ref();
+    let disk_sleep = snapshot
+        .processes
+        .iter()
+        .filter(|proc| proc.state == ProcessState::DiskSleep)
+        .count() as f64;
+
+    let reclaim_score = memory
+        .map(|mem| mem.vm_pgscan.saturating_add(mem.vm_pgsteal) as f64 / 1_000.0)
+        .unwrap_or(0.0);
+    let swap_push = memory
+        .map(|mem| mem.vm_pswpin.saturating_add(mem.vm_pswpout) as f64)
+        .unwrap_or(0.0);
+    let host_vs_cgroup_gap = cgroup
+        .map(|cg| (snapshot.computed.memory_pressure * 100.0 - cg.memory_usage_pct).abs())
+        .unwrap_or(0.0);
+    let cpu_wait = cpu.map(|entry| entry.iowait_pct).unwrap_or(0.0)
+        + psi
+            .and_then(|entry| entry.cpu.some.as_ref().map(|window| window.avg10))
+            .unwrap_or(0.0);
+    let io_stall = psi
+        .and_then(|entry| entry.io.some.as_ref().map(|window| window.avg10))
+        .unwrap_or(0.0)
+        + disk_sleep * 2.0;
+    let mem_stall = psi
+        .and_then(|entry| entry.memory.some.as_ref().map(|window| window.avg10))
+        .unwrap_or(0.0)
+        + snapshot.computed.memory_pressure * 100.0 / 10.0;
+
+    let rows = vec![
+        key_value_row(
+            text(locale, "Reclaim score", "Reclaim score"),
+            format!("{reclaim_score:.1}"),
+            severity_style(reclaim_score, 50.0, 5.0, theme),
+        ),
+        key_value_row(
+            text(locale, "Swap push", "Swap push"),
+            format!("{swap_push:.0}"),
+            severity_style(swap_push, 10.0, 1.0, theme),
+        ),
+        key_value_row(
+            text(locale, "Host/cgroup gap", "Host/cgroup gap"),
+            format!("{host_vs_cgroup_gap:.0}%"),
+            body_style(theme),
+        ),
+        key_value_row(
+            text(locale, "CPU wait mix", "CPU wait mix"),
+            format!("{cpu_wait:.1}"),
+            severity_style(cpu_wait, 15.0, 3.0, theme),
+        ),
+        key_value_row(
+            text(locale, "IO stall mix", "IO stall mix"),
+            format!("{io_stall:.1}"),
+            severity_style(io_stall, 15.0, 3.0, theme),
+        ),
+        key_value_row(
+            text(locale, "Mem stall mix", "Mem stall mix"),
+            format!("{mem_stall:.1}"),
+            severity_style(mem_stall, 15.0, 5.0, theme),
+        ),
+    ];
+
+    let table = metric_table(
+        text(locale, " ◉ PRESSURE LENSES ", " ◉ PRESSURE LENSES "),
+        vec![
+            Cell::from(text(locale, "Signal", "Signal")),
+            Cell::from(text(locale, "Valeur", "Value")),
+        ],
+        rows,
+        [Constraint::Percentage(58), Constraint::Percentage(42)],
         theme,
     );
     frame.render_widget(table, area);
@@ -1081,6 +1199,103 @@ fn render_disk_waiter_table(
             Constraint::Length(7),
             Constraint::Length(7),
         ],
+        theme,
+    );
+    frame.render_widget(table, area);
+}
+
+fn render_disk_lens_table(
+    frame: &mut Frame,
+    area: Rect,
+    snapshot: &Snapshot,
+    locale: Locale,
+    theme: &Theme,
+) {
+    let hottest = snapshot.disks.iter().max_by(|a, b| {
+        b.util_pct
+            .partial_cmp(&a.util_pct)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| {
+                b.await_ms
+                    .partial_cmp(&a.await_ms)
+                    .unwrap_or(Ordering::Equal)
+            })
+    });
+    let total_iops = snapshot
+        .disks
+        .iter()
+        .map(|disk| disk.read_iops + disk.write_iops)
+        .sum::<u64>() as f64;
+    let total_throughput_kb = snapshot
+        .disks
+        .iter()
+        .map(|disk| disk.read_throughput_kb + disk.write_throughput_kb)
+        .sum::<u64>() as f64;
+    let disk_sleep = snapshot
+        .processes
+        .iter()
+        .filter(|proc| proc.state == ProcessState::DiskSleep)
+        .count() as f64;
+    let top_io = snapshot
+        .processes
+        .iter()
+        .map(|proc| proc.io_read_bytes + proc.io_write_bytes)
+        .sum::<u64>() as f64
+        / (1024.0 * 1024.0);
+
+    let rows = vec![
+        key_value_row(
+            text(locale, "Busy path", "Busy path"),
+            hottest
+                .map(|disk| format!("{:.1}%", disk.util_pct))
+                .unwrap_or_else(|| "0.0%".to_string()),
+            hottest
+                .map(|disk| severity_style(disk.util_pct, 90.0, 75.0, theme))
+                .unwrap_or_else(|| body_style(theme)),
+        ),
+        key_value_row(
+            text(locale, "Latency path", "Latency path"),
+            hottest
+                .map(|disk| format!("{:.1} ms", disk.await_ms))
+                .unwrap_or_else(|| "0.0 ms".to_string()),
+            hottest
+                .map(|disk| severity_style(disk.await_ms, 20.0, 5.0, theme))
+                .unwrap_or_else(|| body_style(theme)),
+        ),
+        key_value_row(
+            text(locale, "Queue path", "Queue path"),
+            hottest
+                .map(|disk| format!("{:.2}", disk.queue_depth))
+                .unwrap_or_else(|| "0.00".to_string()),
+            hottest
+                .map(|disk| severity_style(disk.queue_depth, 2.0, 0.5, theme))
+                .unwrap_or_else(|| body_style(theme)),
+        ),
+        key_value_row(
+            text(locale, "IOPS sum", "IOPS sum"),
+            format!("{total_iops:.0}"),
+            body_style(theme),
+        ),
+        key_value_row(
+            text(locale, "Throughput sum", "Throughput sum"),
+            format!("{:.0} KB/s", total_throughput_kb),
+            body_style(theme),
+        ),
+        key_value_row(
+            text(locale, "Waiter pressure", "Waiter pressure"),
+            format!("D {:.0} / IO {:.1} MB", disk_sleep, top_io),
+            severity_style(disk_sleep + top_io / 100.0, 5.0, 1.0, theme),
+        ),
+    ];
+
+    let table = metric_table(
+        text(locale, " ◉ DISK LENSES ", " ◉ DISK LENSES "),
+        vec![
+            Cell::from(text(locale, "Signal", "Signal")),
+            Cell::from(text(locale, "Valeur", "Value")),
+        ],
+        rows,
+        [Constraint::Percentage(58), Constraint::Percentage(42)],
         theme,
     );
     frame.render_widget(table, area);
