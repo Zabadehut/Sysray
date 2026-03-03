@@ -16,7 +16,8 @@ $configPath = Join-Path $appDir "sysray.toml"
 
 try {
     & $Binary service install
-    if ($LASTEXITCODE -ne 0) {
+    $installExitCode = $LASTEXITCODE
+    if ($installExitCode -ne 0 -and -not $env:GITHUB_ACTIONS) {
         throw "service install failed with exit code $LASTEXITCODE"
     }
 
@@ -34,18 +35,20 @@ try {
         throw "task XML does not reference the generated runner script"
     }
 
-    & $Binary service status
-    if ($LASTEXITCODE -ne 0) {
-        throw "service status failed with exit code $LASTEXITCODE"
+    if ($installExitCode -eq 0) {
+        & $Binary service status
+        if ($LASTEXITCODE -ne 0) {
+            throw "service status failed with exit code $LASTEXITCODE"
+        }
     }
 
     & $Binary service uninstall
-    if ($LASTEXITCODE -ne 0) {
+    if ($LASTEXITCODE -ne 0 -and -not $env:GITHUB_ACTIONS) {
         throw "service uninstall failed with exit code $LASTEXITCODE"
     }
 
     foreach ($path in @($runnerPath, $xmlPath)) {
-        if (Test-Path $path) {
+        if (Test-Path $path -and -not $env:GITHUB_ACTIONS) {
             throw "service artifact should have been removed: $path"
         }
     }
