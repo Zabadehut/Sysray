@@ -16,6 +16,7 @@ Current commands:
 - `pulsar top --sort cpu --limit 20`
 - `pulsar watch --pid <PID>`
 - `pulsar replay <FILE>`
+- `pulsar explain <TERM> [--lang fr|en] [--audience beginner|expert]`
 - `pulsar service install|status|uninstall`
 
 Benchmark helper:

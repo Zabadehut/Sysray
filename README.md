@@ -33,6 +33,7 @@ What is working now:
 - Post-collection computed metrics pipeline
 - Cross-platform platform layer with Linux implementation and macOS/Windows stubs
 - Service management scaffolding for `systemd`, `launchd`, and Windows Task Scheduler
+- Shared technical reference catalog exposed in TUI, API, and CLI explain mode
 
 What is not finished yet:
 
@@ -95,6 +96,10 @@ pulsar watch --pid 1234
 
 # Replay a recorded session
 pulsar replay ./captures/pulsar_20260303_130000.jsonl
+
+# Explain a technical term
+pulsar explain latency
+pulsar explain swap --lang en --audience beginner
 
 # Service integration
 pulsar service install

@@ -26,6 +26,10 @@ Built-in service integration:
   Linux: systemd --user
   macOS: launchd LaunchAgent
   Windows: Task Scheduler
+
+Reference and explain:
+  pulsar explain latency
+  pulsar explain swap --lang en --audience beginner
 ";
 
 /// Pulsar — System Observability Engine
@@ -104,6 +108,20 @@ pub enum Commands {
     Replay {
         /// Path to a previously recorded session file
         file: PathBuf,
+    },
+
+    /// Explain a technical term using the shared reference catalog
+    Explain {
+        /// Search term, metric, or concept to explain
+        term: String,
+
+        /// Output language: fr or en
+        #[arg(long, default_value = "fr")]
+        lang: String,
+
+        /// Audience level filter: beginner or expert
+        #[arg(long)]
+        audience: Option<String>,
     },
 
     /// Install, remove, or inspect OS service integration

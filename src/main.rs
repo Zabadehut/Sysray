@@ -21,6 +21,7 @@ use config::Config;
 use engine::{Registry, Scheduler};
 use exporters::{csv::CsvExporter, json::JsonExporter, prometheus::PrometheusExporter, Exporter};
 use pipeline::{AlertStage, CpuTrendStage, MemoryPressureStage, PipelineRunner, PipelineStage};
+use reference::{Audience, Locale};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
@@ -66,6 +67,11 @@ async fn main() -> Result<()> {
         }
         Commands::Watch { pid } => run_watch(pid).await,
         Commands::Replay { file } => run_replay(file).await,
+        Commands::Explain {
+            term,
+            lang,
+            audience,
+        } => run_explain(&term, &lang, audience.as_deref()),
         Commands::Service { action } => service::run_service(action).await,
     }
 }
@@ -389,7 +395,50 @@ async fn run_replay(file: PathBuf) -> Result<()> {
     Ok(())
 }
 
+fn run_explain(term: &str, lang: &str, audience: Option<&str>) -> Result<()> {
+    let locale = Locale::parse(lang);
+    let audience = audience.and_then(parse_audience);
+    let hits = reference::search(term, locale);
+
+    let filtered: Vec<_> = hits
+        .into_iter()
+        .filter(|hit| audience.is_none_or(|value| hit.entry.audience == value))
+        .collect();
+
+    if filtered.is_empty() {
+        println!("No reference entry found for '{term}'.");
+        return Ok(());
+    }
+
+    for (index, hit) in filtered.iter().enumerate() {
+        if index > 0 {
+            println!();
+        }
+
+        println!(
+            "{} [{}] ({:?})",
+            hit.entry.title, hit.entry.panel, hit.entry.audience
+        );
+        println!("id: {}", hit.entry.id);
+        println!("summary: {}", hit.entry.summary);
+        println!("beginner: {}", hit.entry.beginner);
+        println!("expert: {}", hit.entry.expert);
+        println!("aliases: {}", hit.entry.aliases.join(", "));
+        println!("tags: {}", hit.entry.tags.join(", "));
+    }
+
+    Ok(())
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+fn parse_audience(value: &str) -> Option<Audience> {
+    match value.to_ascii_lowercase().as_str() {
+        "beginner" | "debutant" => Some(Audience::Beginner),
+        "expert" => Some(Audience::Expert),
+        _ => None,
+    }
+}
 
 fn parse_duration(s: &str) -> Option<u64> {
     if let Some(n) = s.strip_suffix('s') {
