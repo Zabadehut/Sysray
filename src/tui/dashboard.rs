@@ -1024,7 +1024,7 @@ impl OperatorMode {
     pub fn label(self, locale: Locale) -> &'static str {
         match self {
             Self::Overview => text(locale, "vue", "overview"),
-            Self::Storage => text(locale, "stockage", "storage"),
+            Self::Storage => text(locale, "io", "io"),
             Self::Network => text(locale, "reseau", "network"),
             Self::Process => text(locale, "processus", "process"),
             Self::Pressure => text(locale, "pression", "pressure"),

@@ -82,7 +82,7 @@ What is not finished yet:
 
 Use `pulsar --help` for the live CLI and `pulsar <command> --help` for per-command details.
 Built-in recording rotation, retention, and closed-segment `zip` compression are now in the CLI. The standalone archive command is still planned and documented in [`docs/help.md`](docs/help.md).
-The TUI now exposes a technical reference pane with `/` for search, `?` for the index, `1` to `6` for operator presets, `7` to `0` for expert local diagnostics, `v` for detail density, and `i` to switch `fr`/`en`. The index follows the active language and specialist view context, and the expert body views now drill directly into pressure paths, sockets, JVM hotspots, and disk waiters.
+The TUI now exposes a technical reference pane with `/` for search, `?` for the index, `1` to `6` for operator presets, `7` to `0` for expert local diagnostics, `g` for `inventory+`, `v` for detail density, and `i` to switch `fr`/`en`. The index follows the active language and specialist view context. In practice, `io` is the broad storage preset, `disk+` is the contention/performance drill-down, and `inventory+` is the local topology / stack / refs view.
 
 ## Screens
 
@@ -105,6 +105,10 @@ Expert JVM view:
 Expert disk view:
 
 ![Pulsar expert disk diagnostics](docs/screenshots/tui-expert-disk-real.svg)
+
+Disk inventory view:
+
+![Pulsar expert disk inventory](docs/screenshots/tui-expert-inventory-real.svg)
 
 These captures are generated from real terminal frames with:
 

@@ -66,6 +66,7 @@ async fn snapshot_handler(State(state): State<AppState>) -> impl IntoResponse {
 struct InventoryResponse {
     host: Option<InventoryHost>,
     disks: Vec<DiskInventoryView>,
+    groups: Vec<DiskInventoryGroupView>,
     networks: Vec<NetworkInventoryView>,
 }
 
@@ -109,6 +110,19 @@ struct DiskInventoryView {
     used_gb: f64,
     free_gb: f64,
     usage_pct: f64,
+}
+
+#[derive(Serialize)]
+struct DiskInventoryGroupView {
+    root_device: String,
+    transport: String,
+    model: String,
+    protocol: String,
+    media: String,
+    members: Vec<String>,
+    mounted_devices: Vec<String>,
+    filesystems: Vec<String>,
+    volume_kinds: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -226,7 +240,7 @@ async fn inventory_handler(State(state): State<AppState>) -> impl IntoResponse {
                 free_gb: disk.free_gb,
                 usage_pct: disk.usage_pct,
             })
-            .collect()
+            .collect::<Vec<_>>()
     } else {
         raw_inventory
             .iter()
@@ -296,7 +310,7 @@ async fn inventory_handler(State(state): State<AppState>) -> impl IntoResponse {
                     usage_pct: metrics.map(|item| item.usage_pct).unwrap_or(0.0),
                 }
             })
-            .collect()
+            .collect::<Vec<_>>()
     };
 
     let networks = snapshot
@@ -312,14 +326,86 @@ async fn inventory_handler(State(state): State<AppState>) -> impl IntoResponse {
         })
         .collect();
 
+    let groups = build_disk_groups(&disks);
+
     (
         StatusCode::OK,
         Json(InventoryResponse {
             host,
             disks,
+            groups,
             networks,
         }),
     )
+}
+
+fn build_disk_groups(disks: &[DiskInventoryView]) -> Vec<DiskInventoryGroupView> {
+    let mut grouped: HashMap<String, Vec<&DiskInventoryView>> = HashMap::new();
+    for disk in disks {
+        let root = disk
+            .logical_stack
+            .first()
+            .cloned()
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| disk.device.clone());
+        grouped.entry(root).or_default().push(disk);
+    }
+
+    let mut groups = grouped
+        .into_iter()
+        .map(|(root_device, members)| {
+            let root = members
+                .iter()
+                .find(|disk| disk.device == root_device)
+                .copied()
+                .unwrap_or(members[0]);
+            DiskInventoryGroupView {
+                root_device,
+                transport: root.transport.clone(),
+                model: root.model.clone(),
+                protocol: root.protocol.clone(),
+                media: root.media.clone(),
+                members: unique_sorted(
+                    members
+                        .iter()
+                        .map(|disk| disk.device.clone())
+                        .collect::<Vec<_>>(),
+                ),
+                mounted_devices: unique_sorted(
+                    members
+                        .iter()
+                        .filter(|disk| {
+                            !disk.mount_point.is_empty() || !disk.mount_points.is_empty()
+                        })
+                        .map(|disk| disk.device.clone())
+                        .collect::<Vec<_>>(),
+                ),
+                filesystems: unique_sorted(
+                    members
+                        .iter()
+                        .filter(|disk| !disk.filesystem.is_empty())
+                        .map(|disk| disk.filesystem.clone())
+                        .collect::<Vec<_>>(),
+                ),
+                volume_kinds: unique_sorted(
+                    members
+                        .iter()
+                        .filter(|disk| !disk.volume_kind.is_empty())
+                        .map(|disk| disk.volume_kind.clone())
+                        .collect::<Vec<_>>(),
+                ),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    groups.sort_by(|a, b| a.root_device.cmp(&b.root_device));
+    groups
+}
+
+fn unique_sorted(mut values: Vec<String>) -> Vec<String> {
+    values.sort();
+    values.dedup();
+    values
 }
 
 async fn reference_handler(Query(query): Query<ReferenceQuery>) -> impl IntoResponse {

@@ -15,6 +15,7 @@ The format is inspired by Keep a Changelog, and this project aims to follow Sema
 - Richer `/inventory` payloads for disk topology consumers and operators
 - New `inventory+` expert TUI view for local disk tree and logical stack reading
 - Linux `sysfs` enrichment for scheduler, rotational/removable/read-only flags, and holder/slave links
+- Real README capture for `inventory+`
 
 ### Changed
 
@@ -22,6 +23,7 @@ The format is inspired by Keep a Changelog, and this project aims to follow Sema
 - The TUI footer now reads the package version directly from Cargo metadata
 - `disk+` and detailed disk tables now surface filesystem, parentage, and stable-ref cues closer to an `lsblk`-style reading
 - The shared reference catalog now covers volume kind and logical stack terminology for the new disk inventory view
+- The `storage` preset is now presented as `io` in the TUI to avoid overlap with `disk+` and `inventory+`
 
 ## [0.4.0] - 2026-03-03
 

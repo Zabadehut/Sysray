@@ -365,6 +365,9 @@ fn enrich_linux_disk_inventory(items: &mut [RawDiskInventory]) {
 
     for item in items.iter_mut() {
         let sys_path = sys_block_path(&item.device);
+        let dm_name = read_string_file(&sys_path.join("dm/name"));
+        let dm_uuid = read_string_file(&sys_path.join("dm/uuid"));
+        let md_level = read_string_file(&sys_path.join("md/level"));
 
         if item.structure.is_empty() {
             item.structure = infer_linux_structure(&item.device, &sys_path);
@@ -376,8 +379,12 @@ fn enrich_linux_disk_inventory(items: &mut [RawDiskInventory]) {
         }
         if item.reference.is_empty() {
             item.reference = read_string_file(&sys_path.join("device/wwid"))
+                .or_else(|| dm_uuid.clone())
                 .or_else(|| read_string_file(&sys_path.join("device/serial")))
                 .unwrap_or_default();
+        }
+        if item.label.is_empty() {
+            item.label = dm_name.clone().unwrap_or_default();
         }
         item.scheduler = read_string_file(&sys_path.join("queue/scheduler"))
             .map(|value| value.replace(['[', ']'], ""))
@@ -387,7 +394,12 @@ fn enrich_linux_disk_inventory(items: &mut [RawDiskInventory]) {
         item.read_only = read_bool_file(&sys_path.join("ro"));
         item.slaves = read_dir_names(&sys_path.join("slaves"));
         item.holders = read_dir_names(&sys_path.join("holders"));
-        item.volume_kind = infer_linux_volume_kind(item);
+        item.volume_kind = infer_linux_volume_kind(
+            item,
+            dm_name.as_deref(),
+            dm_uuid.as_deref(),
+            md_level.as_deref(),
+        );
         item.filesystem_family = filesystem_family(&item.filesystem);
         item.logical_stack = logical_stack_for(&item.device, &parent_map);
     }
@@ -437,29 +449,69 @@ fn infer_linux_transport(device: &str) -> &'static str {
     }
 }
 
-fn infer_linux_volume_kind(item: &RawDiskInventory) -> String {
+fn infer_linux_volume_kind(
+    item: &RawDiskInventory,
+    dm_name: Option<&str>,
+    dm_uuid: Option<&str>,
+    md_level: Option<&str>,
+) -> String {
+    let fs = item.filesystem.to_ascii_lowercase();
+    let dm_uuid = dm_uuid.unwrap_or_default().to_ascii_lowercase();
+    let dm_name = dm_name.unwrap_or_default().to_ascii_lowercase();
+
     if item.structure == "raid" || item.device.starts_with("md") {
-        "raid-array".to_string()
+        if let Some(level) = md_level {
+            format!("md-{level}")
+        } else {
+            "raid-array".to_string()
+        }
     } else if item.structure == "mapper" || item.device.starts_with("dm-") {
-        if item.filesystem.eq_ignore_ascii_case("LVM2_member") {
+        if dm_uuid.starts_with("lvm-") || dm_name.contains('-') {
+            "lvm-lv".to_string()
+        } else if dm_uuid.starts_with("crypt-")
+            || dm_name.contains("crypt")
+            || dm_name.contains("luks")
+        {
+            "luks-mapper".to_string()
+        } else if dm_uuid.starts_with("mpath-") || dm_name.contains("mpath") {
+            "multipath".to_string()
+        } else if fs == "lvm2_member" {
             "lvm-pv".to_string()
         } else {
             "mapped-volume".to_string()
         }
     } else if item.structure == "part" || item.structure == "partition" {
-        if item.filesystem.eq_ignore_ascii_case("LVM2_member") {
+        if fs == "lvm2_member" {
             "lvm-member".to_string()
-        } else if item.filesystem.eq_ignore_ascii_case("linux_raid_member") {
+        } else if fs == "linux_raid_member" {
             "raid-member".to_string()
+        } else if fs == "crypto_luks" {
+            "luks-member".to_string()
+        } else if fs == "btrfs" {
+            "btrfs-partition".to_string()
         } else {
             "partition".to_string()
         }
     } else if item.device.starts_with("loop") {
         "loop-device".to_string()
-    } else if item.filesystem.eq_ignore_ascii_case("btrfs") {
+    } else if item.device.starts_with("zram") {
+        "zram-device".to_string()
+    } else if fs == "btrfs" {
         "btrfs-volume".to_string()
-    } else if item.filesystem.eq_ignore_ascii_case("zfs_member") {
+    } else if fs == "zfs_member" {
         "zfs-member".to_string()
+    } else if fs == "xfs"
+        || fs == "ext4"
+        || fs == "ext3"
+        || fs == "ext2"
+        || fs == "ntfs"
+        || fs == "refs"
+        || fs == "apfs"
+        || fs == "vfat"
+        || fs == "fat32"
+        || fs == "exfat"
+    {
+        "filesystem-volume".to_string()
     } else if item.filesystem.is_empty() {
         "block-device".to_string()
     } else {
