@@ -404,7 +404,9 @@ It then creates:
 - `dist/sysray-<version>-<target>/standalone/`
 - `dist/sysray-<version>-<target>/install-prereqs/`
 - `dist/sysray-<version>-<target>.tar.gz`
+- `dist/sysray-<version>-<target>.rpm` on Linux targets when `rpmbuild` is available
 - `dist/sysray-<version>-<target>.zip` on Windows targets
+- `dist/sysray-<version>-<target>.exe` on Windows targets
 - `dist/sysray-<version>-<target>.SHA256SUMS`
 - `dist/sysray-<version>-<target>.SHA256SUMS.asc` when `gpg` is available and `SYSRAY_GPG_KEY_ID` is set
 

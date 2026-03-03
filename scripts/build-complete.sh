@@ -22,6 +22,7 @@ CHECKSUMS_PATH="$DIST_DIR/${BUNDLE_NAME}.SHA256SUMS"
 SIGNATURE_PATH="${CHECKSUMS_PATH}.asc"
 SIGNING_KEY="${SYSRAY_GPG_KEY_ID:-}"
 GENERATED_ARCHIVES=()
+GENERATED_FILES=()
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -91,6 +92,114 @@ create_zip_archive() {
   exit 1
 }
 
+rpm_arch() {
+  case "$HOST_TARGET" in
+    x86_64-*-linux-*) printf '%s\n' "x86_64" ;;
+    aarch64-*-linux-*) printf '%s\n' "aarch64" ;;
+    armv7*-linux-gnueabihf) printf '%s\n' "armv7hl" ;;
+    *) return 1 ;;
+  esac
+}
+
+create_rpm_package() {
+  local rpm_arch
+  rpm_arch="$(rpm_arch)" || {
+    echo "==> RPM packaging skipped (unsupported Linux target: $HOST_TARGET)"
+    return
+  }
+
+  if ! command -v rpmbuild >/dev/null 2>&1; then
+    echo "==> RPM packaging skipped (rpmbuild not available)"
+    return
+  fi
+
+  local rpm_root
+  local spec_path
+  local source_root
+  local rpm_path
+  rpm_root="$(mktemp -d "${TMPDIR:-/tmp}/sysray-rpmbuild.XXXXXX")"
+  trap 'rm -rf "$rpm_root"' RETURN
+
+  mkdir -p \
+    "$rpm_root/BUILD" \
+    "$rpm_root/RPMS" \
+    "$rpm_root/SOURCES" \
+    "$rpm_root/SPECS" \
+    "$rpm_root/SRPMS" \
+    "$rpm_root/TMP"
+
+  source_root="$rpm_root/SOURCES/sysray-${VERSION}"
+  mkdir -p \
+    "$source_root/usr/bin" \
+    "$source_root/usr/share/doc/sysray" \
+    "$source_root/usr/share/sysray" \
+    "$source_root/usr/lib/systemd/user"
+
+  install -m 755 "$STANDALONE_DIR/$BINARY_NAME" "$source_root/usr/bin/sysray"
+  install -m 644 LICENSE "$source_root/usr/share/doc/sysray/LICENSE"
+  install -m 644 README.md "$source_root/usr/share/doc/sysray/README.md"
+  install -m 644 "$STANDALONE_DIR/BUILD-INFO.txt" "$source_root/usr/share/doc/sysray/BUILD-INFO.txt"
+  install -m 644 config/sysray.toml.example "$source_root/usr/share/sysray/sysray.toml.example"
+  install -m 644 deploy/systemd/sysray.service "$source_root/usr/lib/systemd/user/sysray.service"
+
+  (
+    cd "$rpm_root/SOURCES"
+    tar -czf "sysray-${VERSION}.tar.gz" "sysray-${VERSION}"
+  )
+
+  spec_path="$rpm_root/SPECS/sysray.spec"
+  cat > "$spec_path" <<EOF
+%global debug_package %{nil}
+Name:           sysray
+Version:        $VERSION
+Release:        1%{?dist}
+Summary:        Modern cross-platform system observability engine
+License:        Apache-2.0
+URL:            https://github.com/Zabadehut/Sysray
+Source0:        %{name}-%{version}.tar.gz
+BuildArch:      $rpm_arch
+
+%description
+Sysray is a local-first system observability engine with an interactive TUI,
+recording, exporters, and cross-platform service scaffolding.
+
+%prep
+%autosetup
+
+%build
+
+%install
+rm -rf %{buildroot}
+mkdir -p %{buildroot}
+cp -a usr %{buildroot}/
+
+%files
+%license /usr/share/doc/sysray/LICENSE
+/usr/bin/sysray
+/usr/lib/systemd/user/sysray.service
+/usr/share/doc/sysray/README.md
+/usr/share/doc/sysray/BUILD-INFO.txt
+/usr/share/sysray/sysray.toml.example
+
+%changelog
+* $(LC_ALL=C date +"%a %b %d %Y") Kevin Vanden-Brande <zaba88@hotmail.fr> - $VERSION-1
+- Automated Sysray release package
+EOF
+
+  rpmbuild \
+    --define "_topdir $rpm_root" \
+    --define "_tmppath $rpm_root/TMP" \
+    -bb "$spec_path"
+
+  rpm_path="$(find "$rpm_root/RPMS/$rpm_arch" -maxdepth 1 -type f -name "sysray-${VERSION}-1*.${rpm_arch}.rpm" | head -n 1)"
+  if [[ -z "$rpm_path" ]]; then
+    echo "RPM package not found under $rpm_root/RPMS/$rpm_arch" >&2
+    exit 1
+  fi
+  install -m 644 "$rpm_path" "$DIST_DIR/$(basename "$rpm_path")"
+  GENERATED_FILES+=("$DIST_DIR/$(basename "$rpm_path")")
+}
+
 generate_signature() {
   if ! command -v gpg >/dev/null 2>&1; then
     echo "==> Release signature skipped (gpg not available)"
@@ -108,6 +217,17 @@ generate_signature() {
     "$CHECKSUMS_PATH"
 
   echo "Signature:         $SIGNATURE_PATH"
+}
+
+is_generated_archive() {
+  local candidate="$1"
+  local archive_path
+  for archive_path in "${GENERATED_ARCHIVES[@]}"; do
+    if [[ "$archive_path" == "$candidate" ]]; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 require_command cargo
@@ -130,7 +250,7 @@ fi
 echo "==> Assemble dist bundle"
 rm -rf "$WORK_DIR"
 mkdir -p "$STANDALONE_DIR" "$PREREQS_DIR/linux" "$PREREQS_DIR/macos" "$PREREQS_DIR/windows"
-rm -f "$DIST_DIR/${BUNDLE_NAME}.tar.gz" "$DIST_DIR/${BUNDLE_NAME}.zip" "$CHECKSUMS_PATH" "$SIGNATURE_PATH"
+rm -f "$DIST_DIR/${BUNDLE_NAME}.tar.gz" "$DIST_DIR/${BUNDLE_NAME}.zip" "$DIST_DIR/${BUNDLE_NAME}.exe" "$DIST_DIR"/*.rpm "$CHECKSUMS_PATH" "$SIGNATURE_PATH"
 
 cp "$BINARY_PATH" "$STANDALONE_DIR/$BINARY_NAME"
 cp config/sysray.toml.example "$STANDALONE_DIR/sysray.toml.example"
@@ -165,16 +285,26 @@ EOF
 TAR_ARCHIVE_PATH="$DIST_DIR/${BUNDLE_NAME}.tar.gz"
 tar -czf "$TAR_ARCHIVE_PATH" -C "$DIST_DIR" "$BUNDLE_NAME"
 GENERATED_ARCHIVES+=("$TAR_ARCHIVE_PATH")
+GENERATED_FILES+=("$TAR_ARCHIVE_PATH")
 
 if [[ "$HOST_TARGET" == *windows* ]]; then
   ZIP_ARCHIVE_PATH="$DIST_DIR/${BUNDLE_NAME}.zip"
   create_zip_archive "$ZIP_ARCHIVE_PATH"
   GENERATED_ARCHIVES+=("$ZIP_ARCHIVE_PATH")
+  GENERATED_FILES+=("$ZIP_ARCHIVE_PATH")
+
+  EXE_ARTIFACT_PATH="$DIST_DIR/${BUNDLE_NAME}.exe"
+  cp "$STANDALONE_DIR/$BINARY_NAME" "$EXE_ARTIFACT_PATH"
+  GENERATED_FILES+=("$EXE_ARTIFACT_PATH")
+fi
+
+if [[ "$HOST_TARGET" == *linux* ]]; then
+  create_rpm_package
 fi
 
 : > "$CHECKSUMS_PATH"
-for archive_path in "${GENERATED_ARCHIVES[@]}"; do
-  sha256_file "$archive_path" >> "$CHECKSUMS_PATH"
+for artifact_path in "${GENERATED_FILES[@]}"; do
+  sha256_file "$artifact_path" >> "$CHECKSUMS_PATH"
 done
 
 generate_signature
@@ -184,5 +314,10 @@ echo "Standalone bundle: $STANDALONE_DIR"
 echo "Install prereqs:   $PREREQS_DIR"
 for archive_path in "${GENERATED_ARCHIVES[@]}"; do
   echo "Archive:           $archive_path"
+done
+for artifact_path in "${GENERATED_FILES[@]}"; do
+  if ! is_generated_archive "$artifact_path"; then
+    echo "Artifact:          $artifact_path"
+  fi
 done
 echo "Checksums:         $CHECKSUMS_PATH"

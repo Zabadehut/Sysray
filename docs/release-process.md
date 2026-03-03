@@ -35,6 +35,8 @@ The release workflow:
 
 - runs `./scripts/build-complete.sh` on Linux, macOS, and Windows
 - uploads the generated `dist/` artifacts to the workflow run
+- publishes a Linux `.rpm` when the Linux runner has `rpmbuild`
+- publishes a Windows `.exe` in addition to the Windows `.zip`
 - imports the GPG key in the `release` environment when both signing secrets are present
 - signs the checksum files when a key is available
 - publishes the archives, checksums, and checksum signatures to the GitHub Release

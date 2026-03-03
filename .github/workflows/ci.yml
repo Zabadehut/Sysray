@@ -191,6 +191,12 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
+      - name: Install RPM tooling
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+
       - name: Import optional GPG signing key
         if: ${{ env.SYSRAY_GPG_PRIVATE_KEY != '' && env.SYSRAY_GPG_KEY_ID != '' }}
         shell: bash
