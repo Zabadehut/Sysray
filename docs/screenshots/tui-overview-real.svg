@@ -7,7 +7,7 @@
 </defs>
 <rect width="1160" height="790" fill="url(#bg)"/>
 <rect x="10" y="10" width="1140" height="770" rx="12" fill="#0b1020" stroke="#334155" stroke-width="1.5"/>
-<text x="20" y="26" fill="#e5e7eb" font-size="14" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" xml:space="preserve"> ◉ PULSAR   rocky9-workstation-master  linux  up 23h 12m  15:10:57</text>
+<text x="20" y="26" fill="#e5e7eb" font-size="14" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" xml:space="preserve"> ◉ SYSRAY   rocky9-workstation-master  linux  up 23h 12m  15:10:57</text>
 <text x="20" y="44" fill="#e5e7eb" font-size="14" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" xml:space="preserve">mode:complet  lang:fr  index:off</text>
 <text x="20" y="62" fill="#e5e7eb" font-size="14" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" xml:space="preserve">┌ ◉ SYSTEME ───────────────────────────────────────────┐┌ ◉ DISQUE ────────────────────────────────────────────────────────────────────────┐</text>
 <text x="20" y="80" fill="#e5e7eb" font-size="14" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" xml:space="preserve">│ hote: rocky9-workstation-master                      ││Devic Stru Proto Mont Use%  R IO W IOP Lect Ecr K Awai Svc   Qd   Util% FS   Paren│</text>

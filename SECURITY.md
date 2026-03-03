@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Pulsar is currently in an early development stage and does not yet have a formal long-term support policy.
+Sysray is currently in an early development stage and does not yet have a formal long-term support policy.
 
 Security fixes, when applicable, are expected to land on the main development line first.
 
@@ -36,6 +36,6 @@ Relevant security topics include:
 
 ## Current Status
 
-Pulsar should not yet be treated as a hardened enterprise security product.
+Sysray should not yet be treated as a hardened enterprise security product.
 
 That is an explicit non-goal for the current stage.

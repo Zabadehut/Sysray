@@ -1,8 +1,8 @@
 # Contributing
 
-Thanks for considering a contribution to Pulsar.
+Thanks for considering a contribution to Sysray.
 
-Pulsar is still in an early stage. The main goal right now is to build a technically solid foundation before making broad product claims. Contributions that improve correctness, portability, performance, tests, and clarity are the most useful.
+Sysray is still in an early stage. The main goal right now is to build a technically solid foundation before making broad product claims. Contributions that improve correctness, portability, performance, tests, and clarity are the most useful.
 
 ## Principles
 
@@ -80,7 +80,7 @@ If the PR changes behavior or schema, call that out explicitly.
 Useful issue reports include:
 
 - OS and version
-- Pulsar version or commit
+- Sysray version or commit
 - exact command used
 - expected behavior
 - actual behavior

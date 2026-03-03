@@ -1,4 +1,4 @@
-use crate::collectors::{Alert as PulsarAlert, AlertLevel, LogEntry};
+use crate::collectors::{Alert as SysrayAlert, AlertLevel, LogEntry};
 use crate::reference::Locale;
 use crate::tui::{i18n::text, theme::Theme};
 use ratatui::{
@@ -11,7 +11,7 @@ use ratatui::{
 pub fn render(
     frame: &mut Frame,
     area: Rect,
-    alerts: &[PulsarAlert],
+    alerts: &[SysrayAlert],
     system_events: &[LogEntry],
     locale: Locale,
     theme: &Theme,
