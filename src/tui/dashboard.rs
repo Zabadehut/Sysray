@@ -171,14 +171,15 @@ impl Dashboard {
 
     pub fn render(&self, frame: &mut Frame, snapshot: &Snapshot, reference: &ReferenceUiState) {
         let area = frame.area();
+        let footer_height = self.footer_height(area.width);
 
         // Layout principal : header + corps + footer
         let main = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(1), // header
-                Constraint::Min(0),    // corps
-                Constraint::Length(1), // footer
+                Constraint::Length(1),             // header
+                Constraint::Min(0),                // corps
+                Constraint::Length(footer_height), // footer
             ])
             .split(area);
 
@@ -547,109 +548,148 @@ impl Dashboard {
     ) {
         let alerts = snapshot.computed.alerts.len();
         let visibility = &self.visibility;
-        let footer = Paragraph::new(Line::from(vec![
-            Span::styled(" q", self.theme.highlight_style()),
-            Span::raw(":quit  "),
-            Span::styled("r", self.theme.highlight_style()),
-            Span::raw(":refresh  "),
-            Span::styled("t", self.theme.highlight_style()),
-            Span::raw(format!(":theme({})  ", self.theme_name)),
-            Span::styled("i", self.theme.highlight_style()),
+        let footer =
+            Paragraph::new(self.footer_lines(alerts, visibility, snapshot, reference, area.width));
+        frame.render_widget(footer, area);
+    }
+
+    fn footer_height(&self, width: u16) -> u16 {
+        if width >= 180 {
+            2
+        } else if width >= 120 {
+            3
+        } else {
+            4
+        }
+    }
+
+    fn footer_lines(
+        &self,
+        alerts: usize,
+        visibility: &PanelVisibility,
+        snapshot: &Snapshot,
+        reference: &ReferenceUiState,
+        width: u16,
+    ) -> Vec<Line<'static>> {
+        let nav = Line::from(vec![
+            hotkey_span("q", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", text(self.locale, "quitter", "quit"))),
+            hotkey_span("r", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", text(self.locale, "refresh", "refresh"))),
+            hotkey_span("t", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}({})  ",
+                text(self.locale, "theme", "theme"),
+                self.theme_name
+            )),
+            hotkey_span("i", self.theme.highlight_style()),
             Span::raw(format!(
                 ":{}({})  ",
                 text(self.locale, "lang", "lang"),
                 self.locale.code()
             )),
-            Span::styled("v", self.theme.highlight_style()),
+            hotkey_span("v", self.theme.highlight_style()),
             Span::raw(format!(
                 ":{}({})  ",
                 text(self.locale, "detail", "detail"),
                 self.detail_level.label(self.locale)
             )),
-            Span::styled("/", self.theme.highlight_style()),
+            hotkey_span("/", self.theme.highlight_style()),
             Span::raw(format!(":{}  ", text(self.locale, "search", "search"))),
-            Span::styled("?", self.theme.highlight_style()),
+            hotkey_span("?", self.theme.highlight_style()),
             Span::raw(format!(":{}  ", text(self.locale, "index", "index"))),
-            Span::styled("esc", self.theme.highlight_style()),
+            hotkey_span("esc", self.theme.highlight_style()),
             Span::raw(if reference.input_active {
-                text(self.locale, ":fermer recherche  ", ":close search  ")
+                text(self.locale, ":fermer recherche", ":close search")
             } else if reference.visible {
-                text(self.locale, ":fermer index  ", ":close index  ")
+                text(self.locale, ":fermer index", ":close index")
             } else {
-                text(self.locale, ":vider  ", ":clear  ")
+                text(self.locale, ":vider", ":clear")
             }),
-            Span::styled("1", self.theme.highlight_style()),
+        ]);
+
+        let modes = Line::from(vec![
+            hotkey_span("1", self.theme.highlight_style()),
             Span::raw(format!(":{}  ", OperatorMode::Overview.label(self.locale))),
-            Span::styled("2", self.theme.highlight_style()),
+            hotkey_span("2", self.theme.highlight_style()),
             Span::raw(format!(":{}  ", OperatorMode::Storage.label(self.locale))),
-            Span::styled("3", self.theme.highlight_style()),
+            hotkey_span("3", self.theme.highlight_style()),
             Span::raw(format!(":{}  ", OperatorMode::Network.label(self.locale))),
-            Span::styled("4", self.theme.highlight_style()),
+            hotkey_span("4", self.theme.highlight_style()),
             Span::raw(format!(":{}  ", OperatorMode::Process.label(self.locale))),
-            Span::styled("5", self.theme.highlight_style()),
+            hotkey_span("5", self.theme.highlight_style()),
             Span::raw(format!(":{}  ", OperatorMode::Pressure.label(self.locale))),
-            Span::styled("6", self.theme.highlight_style()),
+            hotkey_span("6", self.theme.highlight_style()),
             Span::raw(format!(":{}  ", OperatorMode::Full.label(self.locale))),
+        ]);
+
+        let panels = Line::from(vec![
             panel_toggle_span(
                 "s",
                 text(self.locale, "sys", "sys"),
                 visibility.system,
                 &self.theme,
             ),
-            Span::raw(" "),
+            Span::raw("  "),
             panel_toggle_span(
                 "c",
                 text(self.locale, "cpu", "cpu"),
                 visibility.cpu,
                 &self.theme,
             ),
-            Span::raw(" "),
+            Span::raw("  "),
             panel_toggle_span(
                 "m",
                 text(self.locale, "mem", "mem"),
                 visibility.memory,
                 &self.theme,
             ),
-            Span::raw(" "),
+            Span::raw("  "),
             panel_toggle_span(
                 "l",
                 text(self.locale, "linux", "linux"),
                 visibility.linux,
                 &self.theme,
             ),
-            Span::raw(" "),
+            Span::raw("  "),
             panel_toggle_span(
                 "d",
                 text(self.locale, "disk", "disk"),
                 visibility.disk,
                 &self.theme,
             ),
-            Span::raw(" "),
+            Span::raw("  "),
             panel_toggle_span(
                 "n",
                 text(self.locale, "net", "net"),
                 visibility.network,
                 &self.theme,
             ),
-            Span::raw(" "),
+            Span::raw("  "),
             panel_toggle_span(
                 "a",
                 text(self.locale, "alertes", "alerts"),
                 visibility.alerts,
                 &self.theme,
             ),
-            Span::raw(" "),
+            Span::raw("  "),
             panel_toggle_span(
                 "p",
                 text(self.locale, "proc", "proc"),
                 visibility.process,
                 &self.theme,
             ),
-            Span::raw(format!(
-                "  {}:{}/8  ",
-                text(self.locale, "visibles", "visible"),
-                self.visibility.visible_count()
-            )),
+        ]);
+
+        let status = Line::from(vec![
+            Span::styled(
+                format!(
+                    "{}:{}/8  ",
+                    text(self.locale, "visibles", "visible"),
+                    self.visibility.visible_count()
+                ),
+                self.theme.highlight_style(),
+            ),
             Span::styled(
                 format!(
                     "{}:{} w:{} c:{}  ",
@@ -664,7 +704,6 @@ impl Dashboard {
                     self.theme.highlight_style()
                 },
             ),
-            Span::raw("  "),
             Span::styled(
                 if reference.query.is_empty() {
                     format!(
@@ -685,9 +724,43 @@ impl Dashboard {
                     self.theme.highlight_style()
                 },
             ),
-            Span::raw("  Pulsar v0.1.0 — Kevin Vanden-Brande"),
-        ]));
-        frame.render_widget(footer, area);
+            if width >= 140 {
+                Span::raw("  Pulsar v0.1.0")
+            } else {
+                Span::raw("")
+            },
+        ]);
+
+        if width >= 180 {
+            vec![
+                nav,
+                Line::from(
+                    vec![modes.spans.into_iter().collect::<Vec<_>>()]
+                        .into_iter()
+                        .flatten()
+                        .chain(vec![Span::raw("  ")])
+                        .chain(panels.spans)
+                        .chain(vec![Span::raw("  ")])
+                        .chain(status.spans)
+                        .collect::<Vec<_>>(),
+                ),
+            ]
+        } else if width >= 120 {
+            vec![
+                nav,
+                modes,
+                Line::from(
+                    panels
+                        .spans
+                        .into_iter()
+                        .chain(vec![Span::raw("  ")])
+                        .chain(status.spans)
+                        .collect::<Vec<_>>(),
+                ),
+            ]
+        } else {
+            vec![nav, modes, panels, status]
+        }
     }
 }
 
@@ -724,6 +797,10 @@ fn panel_toggle_span<'a>(key: &'a str, label: &'a str, visible: bool, theme: &Th
             theme.muted_style()
         },
     )
+}
+
+fn hotkey_span(key: &str, style: ratatui::style::Style) -> Span<'static> {
+    Span::styled(format!(" {key}"), style)
 }
 
 fn format_uptime(secs: u64) -> String {
