@@ -230,19 +230,21 @@ fn list_segments(output: &Path) -> Result<Vec<PathBuf>> {
 
 fn compress_segment_to_zip(path: &Path) -> Result<PathBuf> {
     let zip_path = PathBuf::from(format!("{}.zip", path.display()));
-    let mut source = File::open(path)?;
-    let target = File::create(&zip_path)?;
-    let mut writer = ZipWriter::new(target);
-    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
-    let name = path
-        .file_name()
-        .and_then(|value| value.to_str())
-        .unwrap_or("segment.jsonl");
-    writer.start_file(name, options)?;
-    let mut buffer = Vec::new();
-    source.read_to_end(&mut buffer)?;
-    writer.write_all(&buffer)?;
-    writer.finish()?;
+    {
+        let mut source = File::open(path)?;
+        let target = File::create(&zip_path)?;
+        let mut writer = ZipWriter::new(target);
+        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+        let name = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("segment.jsonl");
+        writer.start_file(name, options)?;
+        let mut buffer = Vec::new();
+        source.read_to_end(&mut buffer)?;
+        writer.write_all(&buffer)?;
+        let _ = writer.finish()?;
+    }
     fs::remove_file(path)?;
     Ok(zip_path)
 }
