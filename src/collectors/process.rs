@@ -171,6 +171,7 @@ mod tests {
         assert_eq!(cpu_pct, 100.0);
     }
 
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn process_collector_respects_limit_and_populates_processes_on_linux() {
         let limit = 5;
