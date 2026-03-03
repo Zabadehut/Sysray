@@ -5,6 +5,8 @@
 Pulsar is a system observability engine written in Rust.
 It is being built as a modern replacement for legacy local monitoring tools such as NMON: single binary, low overhead, cross-platform by design, and extensible from day one.
 
+Current workspace version: `0.2.0`
+
 ## Positioning
 
 Pulsar is not presented as a finished enterprise platform today.
@@ -80,7 +82,17 @@ What is not finished yet:
 
 Use `pulsar --help` for the live CLI and `pulsar <command> --help` for per-command details.
 Built-in recording rotation, retention, and closed-segment `zip` compression are now in the CLI. The standalone archive command is still planned and documented in [`docs/help.md`](docs/help.md).
-The TUI now exposes a technical reference pane with `/` for search, `?` for the index, `1` to `6` for operator presets, `7` to `0` for expert local diagnostics, `v` for detail density, and `i` to switch `fr`/`en`. The index follows the active language and specialist view context.
+The TUI now exposes a technical reference pane with `/` for search, `?` for the index, `1` to `6` for operator presets, `7` to `0` for expert local diagnostics, `v` for detail density, and `i` to switch `fr`/`en`. The index follows the active language and specialist view context, and the expert body views now drill directly into pressure paths, sockets, JVM hotspots, and disk waiters.
+
+## Screens
+
+Overview TUI:
+
+![Pulsar TUI overview](docs/screenshots/tui-overview.svg)
+
+Expert network view:
+
+![Pulsar expert network diagnostics](docs/screenshots/tui-expert-network.svg)
 
 ```bash
 # Interactive TUI

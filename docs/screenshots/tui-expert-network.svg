@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="Pulsar expert network view">
+  <defs>
+    <linearGradient id="bg2" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#1f2937"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="panel2" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#182338"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg2)"/>
+  <rect x="32" y="28" width="1216" height="664" rx="18" fill="#0b1020" stroke="#334155" stroke-width="2"/>
+  <text x="58" y="64" fill="#5eead4" font-size="28" font-family="monospace" font-weight="700">◉ PULSAR  rocky9-workstation-master  mode:network + reseau+  lang:fr  search:tcp</text>
+  <rect x="54" y="88" width="1136" height="96" rx="12" fill="url(#panel2)" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="74" y="122" fill="#67e8f9" font-size="24" font-family="monospace">◉ ANALYSE reseau+</text>
+  <text x="74" y="154" fill="#e5e7eb" font-size="22" font-family="monospace">rx 842 KB/s  tx 604 KB/s  erreurs 0 / pertes 0</text>
+  <text x="74" y="178" fill="#cbd5e1" font-size="20" font-family="monospace">hot iface eth0  est 184  listen 13  tw 41  retrans 12  pps 1880</text>
+  <rect x="54" y="206" width="654" height="398" rx="12" fill="url(#panel2)" stroke="#475569" stroke-width="1.5"/>
+  <rect x="726" y="206" width="464" height="232" rx="12" fill="url(#panel2)" stroke="#475569" stroke-width="1.5"/>
+  <rect x="726" y="454" width="464" height="150" rx="12" fill="url(#panel2)" stroke="#475569" stroke-width="1.5"/>
+  <text x="72" y="238" fill="#a78bfa" font-size="22" font-family="monospace">◉ INTERFACES</text>
+  <text x="72" y="272" fill="#94a3b8" font-size="18" font-family="monospace">Iface      RX KB     TX KB     PPS     Err   Drop   Rtx</text>
+  <text x="72" y="304" fill="#e5e7eb" font-size="19" font-family="monospace">eth0       842       604       1880    0     0      12</text>
+  <text x="72" y="334" fill="#e5e7eb" font-size="19" font-family="monospace">docker0    128       133        612    0     0       0</text>
+  <text x="72" y="364" fill="#e5e7eb" font-size="19" font-family="monospace">lo          84        84        440    0     0       0</text>
+  <text x="72" y="394" fill="#e5e7eb" font-size="19" font-family="monospace">tun0        16        11         54    0     0       0</text>
+  <text x="72" y="442" fill="#67e8f9" font-size="20" font-family="monospace">focus: eth0 concentre debit et retransmissions</text>
+  <text x="744" y="238" fill="#a78bfa" font-size="22" font-family="monospace">◉ ETATS SOCKET/TCP</text>
+  <text x="744" y="272" fill="#e5e7eb" font-size="19" font-family="monospace">Established      184</text>
+  <text x="744" y="300" fill="#e5e7eb" font-size="19" font-family="monospace">Listen            13</text>
+  <text x="744" y="328" fill="#e5e7eb" font-size="19" font-family="monospace">TimeWait          41</text>
+  <text x="744" y="356" fill="#e5e7eb" font-size="19" font-family="monospace">Syn sent/recv      2 / 1</text>
+  <text x="744" y="384" fill="#fda4af" font-size="19" font-family="monospace">Retrans           12</text>
+  <text x="744" y="486" fill="#a78bfa" font-size="22" font-family="monospace">◉ ANALYSE LIEN</text>
+  <text x="744" y="520" fill="#e5e7eb" font-size="19" font-family="monospace">retransmissions visibles: perte, congestion</text>
+  <text x="744" y="548" fill="#e5e7eb" font-size="19" font-family="monospace">ou cible lente a verifier</text>
+  <rect x="54" y="624" width="1136" height="46" rx="8" fill="#101827" stroke="#334155" stroke-width="1"/>
+  <text x="66" y="648" fill="#cbd5e1" font-size="15" font-family="monospace">/:search  ?:index  3:network  8:reseau+  i:lang(fr)  v:detail(detailed)  index localise et aligne sur la vue experte</text>
+</svg>

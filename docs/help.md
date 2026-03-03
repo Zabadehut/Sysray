@@ -40,6 +40,11 @@ Index behavior:
 
 - the technical index is localized with the TUI language
 - expert local views also bias the index toward their own diagnostics and terms
+- the expert drill-down body now stays aligned with the same localized terms as the index
+- `pressure+` exposes pressure paths and pressured processes
+- `network+` exposes interface ranking and socket/TCP state breakdown
+- `jvm+` exposes JVM hotspots and runtime/thread orientation
+- `disk+` exposes hot disks plus waiters/IO correlation
 
 Product boundary reminder:
 

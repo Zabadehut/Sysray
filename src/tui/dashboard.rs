@@ -268,12 +268,18 @@ impl Dashboard {
         snapshot: &Snapshot,
         reference: &ReferenceUiState,
     ) {
-        let monitoring_area = if self.specialist_view != SpecialistView::None {
+        if self.specialist_view != SpecialistView::None {
             let rows = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([Constraint::Length(6), Constraint::Min(0)])
+                .constraints([
+                    Constraint::Length(analysis_widget::summary_height(matches!(
+                        self.detail_level,
+                        DetailLevel::Detailed
+                    ))),
+                    Constraint::Min(0),
+                ])
                 .split(area);
-            analysis_widget::render(
+            analysis_widget::render_summary(
                 frame,
                 rows[0],
                 snapshot,
@@ -281,10 +287,19 @@ impl Dashboard {
                 self.locale,
                 &self.theme,
             );
-            rows[1]
-        } else {
-            area
-        };
+            analysis_widget::render_drilldown(
+                frame,
+                rows[1],
+                snapshot,
+                self.specialist_view,
+                self.locale,
+                matches!(self.detail_level, DetailLevel::Detailed),
+                &self.theme,
+            );
+            return;
+        }
+
+        let monitoring_area = area;
 
         let left_panels = [Panel::System, Panel::Cpu, Panel::Memory, Panel::Linux];
         let right_panels = [Panel::Disk, Panel::Network, Panel::Alerts];
@@ -894,7 +909,7 @@ impl Dashboard {
                 },
             ),
             if width >= 140 {
-                Span::raw("  Pulsar v0.1.0")
+                Span::raw(format!("  Pulsar v{}", env!("CARGO_PKG_VERSION")))
             } else {
                 Span::raw("")
             },

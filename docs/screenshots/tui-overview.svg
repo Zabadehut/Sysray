@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="Pulsar TUI overview">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#172036"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <rect x="32" y="28" width="1216" height="664" rx="18" fill="#0b1020" stroke="#334155" stroke-width="2"/>
+  <text x="58" y="64" fill="#5eead4" font-size="28" font-family="monospace" font-weight="700">◉ PULSAR  rocky9-workstation-master  Linux  uptime 01:12:44  14:51:09  mode:full  lang:fr</text>
+  <rect x="54" y="88" width="1136" height="96" rx="12" fill="url(#panel)" stroke="#2dd4bf" stroke-width="1.5"/>
+  <text x="74" y="122" fill="#67e8f9" font-size="24" font-family="monospace">◉ ANALYSE pressure+</text>
+  <text x="74" y="154" fill="#e5e7eb" font-size="22" font-family="monospace">memoire 72%  psi cpu 0.5%  psi mem 1.8%  psi io 0.9%</text>
+  <text x="74" y="178" fill="#cbd5e1" font-size="20" font-family="monospace">cgroup mem 64.0%  throttle 0.0%  disk-sleep: 0  hot proc java  threads 96</text>
+  <rect x="54" y="206" width="430" height="218" rx="12" fill="url(#panel)" stroke="#475569" stroke-width="1.5"/>
+  <rect x="500" y="206" width="690" height="218" rx="12" fill="url(#panel)" stroke="#475569" stroke-width="1.5"/>
+  <text x="72" y="238" fill="#a78bfa" font-size="22" font-family="monospace">◉ SYSTEM</text>
+  <text x="72" y="272" fill="#e5e7eb" font-size="19" font-family="monospace">hostname     rocky9-workstation-master</text>
+  <text x="72" y="300" fill="#e5e7eb" font-size="19" font-family="monospace">kernel       5.14.0-611.34.1.el9_7.x86_64</text>
+  <text x="72" y="328" fill="#e5e7eb" font-size="19" font-family="monospace">cpus         4     uptime 1d 08h</text>
+  <text x="72" y="356" fill="#e5e7eb" font-size="19" font-family="monospace">arch         x86_64</text>
+  <text x="72" y="238" fill="#a78bfa" font-size="22" font-family="monospace"/>
+  <text x="520" y="238" fill="#a78bfa" font-size="22" font-family="monospace">◉ CPU / MEMORY / LINUX</text>
+  <text x="520" y="272" fill="#e5e7eb" font-size="19" font-family="monospace">global cpu  18.4%   load 0.42 / 0.39 / 0.31   iowait 0.3%</text>
+  <text x="520" y="300" fill="#e5e7eb" font-size="19" font-family="monospace">memory      7.4 / 15.3 GB   available 6.1 GB   swap 0.0 GB</text>
+  <text x="520" y="328" fill="#e5e7eb" font-size="19" font-family="monospace">psi         cpu 0.5  mem 1.8  io 0.9   cgroup mem 64.0%</text>
+  <text x="520" y="356" fill="#e5e7eb" font-size="19" font-family="monospace">alerts      1 warning 0 critical</text>
+  <rect x="54" y="444" width="560" height="180" rx="12" fill="url(#panel)" stroke="#475569" stroke-width="1.5"/>
+  <rect x="630" y="444" width="560" height="180" rx="12" fill="url(#panel)" stroke="#475569" stroke-width="1.5"/>
+  <text x="72" y="476" fill="#a78bfa" font-size="22" font-family="monospace">◉ DISK / NETWORK</text>
+  <text x="72" y="510" fill="#e5e7eb" font-size="19" font-family="monospace">nvme0n1   util 19.2%   await 1.4ms   qd 0.12   / 52.0%</text>
+  <text x="72" y="538" fill="#e5e7eb" font-size="19" font-family="monospace">eth0      rx 92 KB/s   tx 66 KB/s    pps 210    rtx 0</text>
+  <text x="72" y="566" fill="#e5e7eb" font-size="19" font-family="monospace">tcp       est 31       listen 9       tw 4</text>
+  <text x="648" y="476" fill="#a78bfa" font-size="22" font-family="monospace">◉ PROCESSUS (top 5)</text>
+  <text x="648" y="510" fill="#e5e7eb" font-size="19" font-family="monospace">2711  java            24.1  1520 MB   S   96 thr   JVM</text>
+  <text x="648" y="538" fill="#e5e7eb" font-size="19" font-family="monospace">8676  pulsar           0.4    13 MB   S    5 thr</text>
+  <text x="648" y="566" fill="#e5e7eb" font-size="19" font-family="monospace">1042  postgres         2.1   214 MB   S   14 thr</text>
+  <rect x="54" y="642" width="1136" height="28" rx="8" fill="#101827" stroke="#334155" stroke-width="1"/>
+  <text x="66" y="661" fill="#cbd5e1" font-size="15" font-family="monospace">q:quit  /:search  ?:index  1..6:modes  7..0:expert  -:clear expert  i:lang(fr)  v:detail(detailed)  Pulsar v0.2.0</text>
+</svg>
