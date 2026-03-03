@@ -420,6 +420,9 @@ fn run_explain(term: &str, lang: &str, audience: Option<&str>) -> Result<()> {
             hit.entry.title, hit.entry.panel, hit.entry.audience
         );
         println!("id: {}", hit.entry.id);
+        println!("category: {}", hit.entry.category);
+        println!("status: {:?}", hit.entry.status);
+        println!("ui_visibility: {:?}", hit.entry.ui_visibility);
         println!("summary: {}", hit.entry.summary);
         println!("beginner: {}", hit.entry.beginner);
         println!("expert: {}", hit.entry.expert);

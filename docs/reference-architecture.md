@@ -12,6 +12,7 @@ Keep one reference model for:
 - future translations
 
 The point is to avoid duplicating metric explanations in several UIs with diverging wording.
+The catalog must be wider than the current TUI and include implemented, partial, and planned metrics.
 
 ## Current Design
 
@@ -24,7 +25,10 @@ src/reference.rs
 Each entry carries:
 
 - stable `id`
+- `category`
 - related `panel`
+- delivery `status`
+- UI presence: `visible` or `indexed_only`
 - `aliases`
 - `tags`
 - audience level: `beginner` or `expert`
@@ -50,6 +54,7 @@ Behavior:
 - the right-side reference pane shows glossary/index content
 - matching monitoring panels are visually highlighted
 - the same search model is reused for beginner and expert explanations
+- entries not yet rendered in the current TUI can still exist as `indexed_only`
 
 ## API Usage
 
@@ -89,6 +94,7 @@ Recommended next locales only if quality is maintainable:
 ## What This Solves
 
 - one source of truth for metric explanations
+- one source of truth for the metric inventory itself
 - consistent wording across OS and host views
 - easier onboarding for beginners
 - still useful detail for expert operators
@@ -96,7 +102,7 @@ Recommended next locales only if quality is maintainable:
 
 ## What Is Still Missing
 
-- CLI command using the shared reference catalog
 - deeper per-metric inline highlighting inside tables
 - more entries for Windows and macOS specifics
+- stricter generation or validation against `docs/metrics-checklist.md`
 - more complete locale coverage beyond `fr` and `en`

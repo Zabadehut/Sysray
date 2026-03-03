@@ -69,6 +69,11 @@ pub fn render(
         lines.push(Line::from(vec![
             Span::styled(format!("{marker} {} ", hit.entry.panel), style),
             Span::styled(hit.entry.title, style),
+            Span::raw(" "),
+            Span::styled(
+                format!("{:?}/{:?}", hit.entry.status, hit.entry.ui_visibility),
+                theme.muted_style(),
+            ),
         ]));
         lines.push(Line::from(hit.entry.summary));
     }

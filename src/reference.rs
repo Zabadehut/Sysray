@@ -7,6 +7,21 @@ pub enum Audience {
     Expert,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MetricStatus {
+    Implemented,
+    Partial,
+    Planned,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiVisibility {
+    Visible,
+    IndexedOnly,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Locale {
     Fr,
@@ -33,7 +48,10 @@ pub struct ReferenceText {
 #[derive(Debug, Clone, Copy)]
 pub struct ReferenceEntry {
     pub id: &'static str,
+    pub category: &'static str,
     pub panel: &'static str,
+    pub status: MetricStatus,
+    pub ui_visibility: UiVisibility,
     pub audience: Audience,
     pub aliases: &'static [&'static str],
     pub tags: &'static [&'static str],
@@ -44,7 +62,10 @@ pub struct ReferenceEntry {
 #[derive(Debug, Clone, Serialize)]
 pub struct ReferenceEntryView {
     pub id: &'static str,
+    pub category: &'static str,
     pub panel: &'static str,
+    pub status: MetricStatus,
+    pub ui_visibility: UiVisibility,
     pub audience: Audience,
     pub title: &'static str,
     pub summary: &'static str,
@@ -63,9 +84,19 @@ pub struct SearchHit {
 const CATALOG: &[ReferenceEntry] = &[
     ReferenceEntry {
         id: "cpu.usage",
+        category: "cpu",
         panel: "cpu",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Beginner,
-        aliases: &["cpu", "usage", "global cpu", "processor"],
+        aliases: &[
+            "cpu",
+            "usage",
+            "global cpu",
+            "global cpu usage",
+            "global cpu usage %",
+            "processor",
+        ],
         tags: &["cpu", "usage", "global", "processor"],
         fr: ReferenceText {
             title: "CPU global",
@@ -82,7 +113,10 @@ const CATALOG: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         id: "cpu.load",
+        category: "cpu",
         panel: "cpu",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Beginner,
         aliases: &["load", "load average", "1m", "5m", "15m"],
         tags: &["cpu", "load", "scheduler"],
@@ -101,7 +135,10 @@ const CATALOG: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         id: "cpu.iowait",
+        category: "cpu",
         panel: "cpu",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Expert,
         aliases: &["iowait", "io wait", "cpu wait"],
         tags: &["cpu", "disk", "latency", "linux"],
@@ -120,9 +157,17 @@ const CATALOG: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         id: "memory.pressure",
+        category: "memory",
         panel: "memory",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Beginner,
-        aliases: &["memory pressure", "pressure", "available memory"],
+        aliases: &[
+            "memory pressure",
+            "memory pressure score",
+            "pressure",
+            "available memory",
+        ],
         tags: &["memory", "pressure", "available", "swap"],
         fr: ReferenceText {
             title: "Pression memoire",
@@ -139,9 +184,19 @@ const CATALOG: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         id: "memory.swap",
+        category: "memory",
         panel: "memory",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Beginner,
-        aliases: &["swap", "paging", "swpin", "swpout"],
+        aliases: &[
+            "swap",
+            "swap total used",
+            "swap total / used",
+            "paging",
+            "swpin",
+            "swpout",
+        ],
         tags: &["memory", "swap", "paging"],
         fr: ReferenceText {
             title: "Swap",
@@ -158,7 +213,10 @@ const CATALOG: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         id: "disk.await",
+        category: "disk",
         panel: "disk",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Expert,
         aliases: &["await", "latency", "disk latency", "storage latency"],
         tags: &["disk", "await", "latency", "storage"],
@@ -177,7 +235,10 @@ const CATALOG: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         id: "disk.queue_depth",
+        category: "disk",
         panel: "disk",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Expert,
         aliases: &["queue depth", "qd", "io queue"],
         tags: &["disk", "queue", "latency", "saturation"],
@@ -196,9 +257,20 @@ const CATALOG: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         id: "network.tcp",
+        category: "network",
         panel: "network",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Beginner,
-        aliases: &["tcp", "connections", "established", "listen", "time_wait"],
+        aliases: &[
+            "tcp",
+            "connections",
+            "total tcp connections",
+            "established tcp connections",
+            "established",
+            "listen",
+            "time_wait",
+        ],
         tags: &["network", "tcp", "connections", "listen"],
         fr: ReferenceText {
             title: "Connexions TCP",
@@ -215,7 +287,10 @@ const CATALOG: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         id: "network.retrans",
+        category: "network",
         panel: "network",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Expert,
         aliases: &["retrans", "retransmits", "packet loss"],
         tags: &["network", "retrans", "loss", "tcp"],
@@ -234,7 +309,10 @@ const CATALOG: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         id: "linux.psi",
+        category: "linux",
         panel: "linux",
+        status: MetricStatus::Partial,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Expert,
         aliases: &["psi", "pressure stall", "stall", "linux pressure"],
         tags: &["linux", "psi", "pressure", "cpu", "memory", "io"],
@@ -253,9 +331,19 @@ const CATALOG: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         id: "linux.cgroup",
+        category: "linux",
         panel: "linux",
+        status: MetricStatus::Partial,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Expert,
-        aliases: &["cgroup", "container", "cpu throttle", "memory max"],
+        aliases: &[
+            "cgroup",
+            "container",
+            "containers cgroup v2",
+            "containers / cgroup v2",
+            "cpu throttle",
+            "memory max",
+        ],
         tags: &["linux", "cgroup", "container", "limits"],
         fr: ReferenceText {
             title: "Cgroup v2",
@@ -272,7 +360,10 @@ const CATALOG: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         id: "process.cpu",
+        category: "process",
         panel: "process",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Beginner,
         aliases: &["process cpu", "top process", "pid", "threads"],
         tags: &["process", "cpu", "pid", "top"],
@@ -291,7 +382,10 @@ const CATALOG: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         id: "process.jvm",
+        category: "process",
         panel: "process",
+        status: MetricStatus::Partial,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Expert,
         aliases: &["jvm", "java", "jvm detection"],
         tags: &["process", "jvm", "java"],
@@ -310,9 +404,12 @@ const CATALOG: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         id: "alerts",
+        category: "derived",
         panel: "alerts",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::Visible,
         audience: Audience::Beginner,
-        aliases: &["alerts", "warning", "critical", "health"],
+        aliases: &["alerts", "threshold alerts", "warning", "critical", "health"],
         tags: &["alerts", "health", "thresholds"],
         fr: ReferenceText {
             title: "Alertes",
@@ -325,6 +422,615 @@ const CATALOG: &[ReferenceEntry] = &[
             summary: "Alerts summarize the most urgent signals in the current snapshot.",
             beginner: "Use them as an entry point, then drill into CPU, memory, disk or network.",
             expert: "Current alerts are local and threshold-based; they provide context, not full RCA.",
+        },
+    },
+    ReferenceEntry {
+        id: "cpu.per_core",
+        category: "cpu",
+        panel: "cpu",
+        status: MetricStatus::Partial,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Beginner,
+        aliases: &["per core", "core cpu", "cpu core", "per-core cpu usage"],
+        tags: &["cpu", "core", "hotspot"],
+        fr: ReferenceText {
+            title: "CPU par coeur",
+            summary: "Detail CPU coeur par coeur.",
+            beginner: "Permet de voir un coeur saturer meme si le global reste modere.",
+            expert: "Utile pour les workloads single-thread et les problemes d'affinite.",
+        },
+        en: ReferenceText {
+            title: "Per-core CPU",
+            summary: "CPU broken down per core.",
+            beginner: "Lets you see one hot core even if total CPU remains moderate.",
+            expert: "Useful for single-thread workloads and affinity issues.",
+        },
+    },
+    ReferenceEntry {
+        id: "cpu.scheduler",
+        category: "cpu",
+        panel: "cpu",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &[
+            "context switches",
+            "interrupt count",
+            "interrupts",
+            "ctx",
+            "irq count",
+        ],
+        tags: &["cpu", "scheduler", "interrupts"],
+        fr: ReferenceText {
+            title: "Signaux ordonnanceur CPU",
+            summary: "Regroupe context switches et interruptions.",
+            beginner: "Aide a reperer une agitation systeme inhabituelle.",
+            expert: "A relier a load, irq%, softirq% et au profil de charge.",
+        },
+        en: ReferenceText {
+            title: "CPU scheduler signals",
+            summary: "Groups context switches and interrupts.",
+            beginner: "Helps spot unusual system churn.",
+            expert: "Read it with load, irq%, softirq% and workload profile.",
+        },
+    },
+    ReferenceEntry {
+        id: "cpu.steal",
+        category: "cpu",
+        panel: "cpu",
+        status: MetricStatus::Partial,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &["steal", "steal %", "stolen cpu"],
+        tags: &["cpu", "steal", "virtualization"],
+        fr: ReferenceText {
+            title: "CPU steal",
+            summary: "Temps CPU vole par la couche de virtualisation.",
+            beginner: "Surtout utile en VM pour voir si l'hote manque de CPU reel.",
+            expert: "Signal fort sous Linux, plus approximatif hors Linux.",
+        },
+        en: ReferenceText {
+            title: "CPU steal",
+            summary: "CPU time taken away by the virtualization layer.",
+            beginner: "Mostly useful on VMs to see whether the host lacks real CPU time.",
+            expert: "Strong signal on Linux, more approximate outside Linux.",
+        },
+    },
+    ReferenceEntry {
+        id: "cpu.pressure",
+        category: "cpu",
+        panel: "cpu",
+        status: MetricStatus::Planned,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &[
+            "cpu pressure",
+            "cpu pressure indicators",
+            "scheduler pressure",
+        ],
+        tags: &["cpu", "pressure", "planned"],
+        fr: ReferenceText {
+            title: "Pression CPU",
+            summary: "Indicateur de contention CPU plus direct que l'usage pur.",
+            beginner: "Objectif : montrer quand les taches attendent vraiment du CPU.",
+            expert: "Planifie pour completer usage, load et PSI.",
+        },
+        en: ReferenceText {
+            title: "CPU pressure",
+            summary: "A CPU contention signal more direct than raw usage.",
+            beginner: "Goal: show when tasks are truly waiting for CPU time.",
+            expert: "Planned to complement usage, load and PSI.",
+        },
+    },
+    ReferenceEntry {
+        id: "memory.breakdown",
+        category: "memory",
+        panel: "memory",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Beginner,
+        aliases: &[
+            "total memory",
+            "used memory",
+            "free memory",
+            "available memory",
+            "cached memory",
+        ],
+        tags: &["memory", "used", "free", "available", "cached"],
+        fr: ReferenceText {
+            title: "Detail memoire",
+            summary: "Total, utilise, libre, disponible, cache.",
+            beginner: "La memoire disponible est souvent plus utile que la memoire libre brute.",
+            expert: "La parite cache/buffers reste variable selon l'OS.",
+        },
+        en: ReferenceText {
+            title: "Memory breakdown",
+            summary: "Total, used, free, available, cached.",
+            beginner: "Available memory is often more useful than raw free memory.",
+            expert: "Cache/buffer parity still varies by OS.",
+        },
+    },
+    ReferenceEntry {
+        id: "memory.vm_counters",
+        category: "memory",
+        panel: "memory",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &["buffers", "dirty pages", "pgfault", "pgscan", "pgsteal"],
+        tags: &["memory", "vm", "buffers", "dirty", "paging"],
+        fr: ReferenceText {
+            title: "Compteurs VM",
+            summary: "Compteurs paging, reclaim et activite memoire.",
+            beginner: "Plus utile pour du diagnostic avance que pour une lecture simple.",
+            expert: "Permet de separer cache sain, manque de RAM et reclaim agressif.",
+        },
+        en: ReferenceText {
+            title: "VM counters",
+            summary: "Paging, reclaim and memory-activity counters.",
+            beginner: "More useful for advanced diagnosis than simple daily reading.",
+            expert: "Helps separate healthy cache, RAM shortage and aggressive reclaim.",
+        },
+    },
+    ReferenceEntry {
+        id: "disk.capacity",
+        category: "disk",
+        panel: "disk",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Beginner,
+        aliases: &[
+            "disk usage",
+            "disk usage %",
+            "disk free",
+            "disk total used free",
+            "disk total / used / free",
+            "capacity",
+            "filesystem usage",
+            "per-filesystem detail parity",
+        ],
+        tags: &["disk", "filesystem", "capacity", "usage"],
+        fr: ReferenceText {
+            title: "Capacite disque",
+            summary: "Total, libre, utilise et taux d'occupation.",
+            beginner: "Un disque plein peut degrader l'hote et casser des applis.",
+            expert: "La profondeur filesystem detaillee complete reste encore planifiee.",
+        },
+        en: ReferenceText {
+            title: "Disk capacity",
+            summary: "Total, free, used space and usage rate.",
+            beginner: "A full disk can degrade the host and break applications.",
+            expert: "Full filesystem-detail parity is still planned.",
+        },
+    },
+    ReferenceEntry {
+        id: "disk.performance",
+        category: "disk",
+        panel: "disk",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &[
+            "iops",
+            "read iops",
+            "write iops",
+            "throughput",
+            "read throughput",
+            "write throughput",
+            "disk utilization",
+            "disk utilization %",
+            "disk await latency",
+            "disk await / latency",
+            "util",
+            "service time",
+        ],
+        tags: &["disk", "iops", "throughput", "utilization"],
+        fr: ReferenceText {
+            title: "Performance disque",
+            summary: "IOPS, debit, util% et temps de service.",
+            beginner: "Un haut debit seul n'est pas un probleme s'il n'y a pas de latence.",
+            expert: "La saturation se lit avec await, queue depth, util% et debit ensemble.",
+        },
+        en: ReferenceText {
+            title: "Disk performance",
+            summary: "IOPS, throughput, util% and service time.",
+            beginner: "High throughput alone is not a problem if latency stays low.",
+            expert: "Saturation must be read through await, queue depth, util% and throughput together.",
+        },
+    },
+    ReferenceEntry {
+        id: "network.throughput",
+        category: "network",
+        panel: "network",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Beginner,
+        aliases: &[
+            "rx bytes",
+            "rx bytes/sec",
+            "tx bytes",
+            "tx bytes/sec",
+            "network throughput",
+            "bandwidth",
+        ],
+        tags: &["network", "throughput", "rx", "tx"],
+        fr: ReferenceText {
+            title: "Debit reseau",
+            summary: "Debit entrant et sortant par interface.",
+            beginner: "Premier signal pour voir si une interface travaille beaucoup.",
+            expert: "A croiser avec paquets, erreurs, drops et retrans.",
+        },
+        en: ReferenceText {
+            title: "Network throughput",
+            summary: "Inbound and outbound throughput per interface.",
+            beginner: "First signal to see whether an interface is busy.",
+            expert: "Cross-check it with packets, errors, drops and retrans.",
+        },
+    },
+    ReferenceEntry {
+        id: "network.packets",
+        category: "network",
+        panel: "network",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &[
+            "packet rate",
+            "rx packets",
+            "rx packets/sec",
+            "tx packets",
+            "tx packets/sec",
+            "pps",
+        ],
+        tags: &["network", "packets", "pps"],
+        fr: ReferenceText {
+            title: "Paquets reseau",
+            summary: "Paquets recus et emis par seconde.",
+            beginner: "Utile quand le debit semble faible mais qu'il y a beaucoup de petits paquets.",
+            expert: "Aide a distinguer gros flux et trafic a forte frequence de paquets.",
+        },
+        en: ReferenceText {
+            title: "Network packets",
+            summary: "Packets received and sent per second.",
+            beginner: "Useful when throughput looks low but lots of tiny packets are moving.",
+            expert: "Helps separate large flows from packet-rate-heavy traffic.",
+        },
+    },
+    ReferenceEntry {
+        id: "network.errors_drops",
+        category: "network",
+        panel: "network",
+        status: MetricStatus::Partial,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &[
+            "errors",
+            "rx tx errors",
+            "rx/tx errors",
+            "drops",
+            "rx tx drops",
+            "rx/tx drops",
+            "packet drops",
+        ],
+        tags: &["network", "errors", "drops"],
+        fr: ReferenceText {
+            title: "Erreurs et drops reseau",
+            summary: "Compteurs de paquets en erreur ou abandonnes.",
+            beginner: "Une hausse persistante est un mauvais signal pour le chemin reseau.",
+            expert: "La parite exacte varie encore selon l'OS, mais le signal reste critique.",
+        },
+        en: ReferenceText {
+            title: "Network errors and drops",
+            summary: "Counters of errored or dropped packets.",
+            beginner: "A persistent rise is a bad sign for the network path.",
+            expert: "Exact parity still varies by OS, but the signal remains critical.",
+        },
+    },
+    ReferenceEntry {
+        id: "network.udp_depth",
+        category: "network",
+        panel: "network",
+        status: MetricStatus::Planned,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &[
+            "udp",
+            "socket family",
+            "udp depth",
+            "udp socket family depth",
+            "udp / socket family depth",
+        ],
+        tags: &["network", "udp", "planned"],
+        fr: ReferenceText {
+            title: "Profondeur UDP/socket",
+            summary: "Vue reseau plus fine par famille de sockets, encore planifiee.",
+            beginner: "Pas vitale au quotidien, utile pour cas reseau plus avances.",
+            expert: "Manque encore pour une lecture fine des charges non-TCP.",
+        },
+        en: ReferenceText {
+            title: "UDP/socket depth",
+            summary: "Finer network view by socket family, still planned.",
+            beginner: "Not vital daily, useful for more advanced network cases.",
+            expert: "Still missing for precise reading of non-TCP workloads.",
+        },
+    },
+    ReferenceEntry {
+        id: "process.inventory",
+        category: "process",
+        panel: "process",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Beginner,
+        aliases: &[
+            "top n",
+            "top n process listing",
+            "process rss",
+            "process vsz",
+            "process thread count",
+            "thread count",
+            "process fd count",
+            "fd count",
+            "process owner",
+            "owner",
+            "process read write bytes",
+            "process read/write bytes",
+            "process io",
+            "basic jvm detection",
+        ],
+        tags: &["process", "rss", "vsz", "threads", "fd", "owner", "io"],
+        fr: ReferenceText {
+            title: "Inventaire processus",
+            summary: "Regroupe RSS, VSZ, threads, FDs, owner et IO.",
+            beginner: "Le point de depart pour voir quel processus pese vraiment sur l'hote.",
+            expert: "Vue de tri rapide a completer par watch, snapshot et replay.",
+        },
+        en: ReferenceText {
+            title: "Process inventory",
+            summary: "Groups RSS, VSZ, threads, FDs, owner and IO.",
+            beginner: "The starting point to see which process really weighs on the host.",
+            expert: "Fast triage view to complement with watch, snapshot and replay.",
+        },
+    },
+    ReferenceEntry {
+        id: "process.jvm.deep",
+        category: "process",
+        panel: "process",
+        status: MetricStatus::Planned,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &["strong jvm awareness", "deep jvm", "jvm runtime"],
+        tags: &["process", "jvm", "planned", "runtime"],
+        fr: ReferenceText {
+            title: "JVM approfondie",
+            summary: "Visibilite JVM plus riche, encore planifiee.",
+            beginner: "Objectif : faire mieux qu'un simple tag JVM.",
+            expert: "Doit etendre l'heuristique actuelle avec de vrais signaux runtime.",
+        },
+        en: ReferenceText {
+            title: "Deep JVM awareness",
+            summary: "Richer JVM visibility, still planned.",
+            beginner: "Goal: go beyond a simple JVM tag.",
+            expert: "Should extend the current heuristic with real runtime signals.",
+        },
+    },
+    ReferenceEntry {
+        id: "process.thread_analysis",
+        category: "process",
+        panel: "process",
+        status: MetricStatus::Planned,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &["deep per-thread analysis", "thread analysis"],
+        tags: &["process", "threads", "planned"],
+        fr: ReferenceText {
+            title: "Analyse par thread",
+            summary: "Diagnostic detaille au niveau thread, encore planifie.",
+            beginner: "Pas necessaire pour l'usage de base, mais utile pour blocages complexes.",
+            expert: "Important pour hot threads, affinite CPU et internals runtime.",
+        },
+        en: ReferenceText {
+            title: "Per-thread analysis",
+            summary: "Detailed thread-level diagnosis, still planned.",
+            beginner: "Not needed for basic use, but useful for complex stalls.",
+            expert: "Important for hot threads, CPU affinity and runtime internals.",
+        },
+    },
+    ReferenceEntry {
+        id: "process.runtime_awareness",
+        category: "process",
+        panel: "process",
+        status: MetricStatus::Planned,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &[
+            "python awareness",
+            "runtime awareness",
+            "python app-runtime awareness",
+            "python / app-runtime awareness",
+        ],
+        tags: &["process", "runtime", "python", "planned"],
+        fr: ReferenceText {
+            title: "Awareness runtime",
+            summary: "Visibilite applicative plus riche pour Python et autres runtimes.",
+            beginner: "Objectif : mieux relier un processus a son comportement applicatif.",
+            expert: "Etend Pulsar au-dela de la simple observabilite host.",
+        },
+        en: ReferenceText {
+            title: "Runtime awareness",
+            summary: "Richer application visibility for Python and other runtimes.",
+            beginner: "Goal: connect a process more clearly to real application behavior.",
+            expert: "Extends Pulsar beyond simple host observability.",
+        },
+    },
+    ReferenceEntry {
+        id: "system.identity",
+        category: "system",
+        panel: "cpu",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Beginner,
+        aliases: &[
+            "hostname",
+            "os version",
+            "os name version",
+            "os name / version",
+            "kernel",
+            "kernel version",
+            "uptime",
+            "architecture",
+            "cpu count",
+        ],
+        tags: &["system", "metadata", "host", "kernel", "uptime"],
+        fr: ReferenceText {
+            title: "Identite systeme",
+            summary: "Nom d'hote, OS, kernel, uptime, architecture et nombre de CPU.",
+            beginner: "Base utile pour savoir exactement quelle machine on lit.",
+            expert: "Conditionne l'interpretation correcte des autres metriques.",
+        },
+        en: ReferenceText {
+            title: "System identity",
+            summary: "Hostname, OS, kernel, uptime, architecture and CPU count.",
+            beginner: "Useful baseline to know exactly which machine you are reading.",
+            expert: "Shapes the correct interpretation of the other metrics.",
+        },
+    },
+    ReferenceEntry {
+        id: "derived.cpu_trend",
+        category: "derived",
+        panel: "cpu",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &[
+            "cpu trend",
+            "cpu trend percentiles",
+            "p50",
+            "p95",
+            "trend percentiles",
+        ],
+        tags: &["derived", "cpu", "trend", "percentiles"],
+        fr: ReferenceText {
+            title: "Tendance CPU",
+            summary: "Percentiles derives pour lisser la lecture CPU recente.",
+            beginner: "Aide a voir si la charge est ponctuelle ou installee.",
+            expert: "Une vue plus robuste qu'un instantane unique.",
+        },
+        en: ReferenceText {
+            title: "CPU trend",
+            summary: "Derived percentiles smoothing recent CPU behavior.",
+            beginner: "Helps tell whether load is spiky or sustained.",
+            expert: "A more robust view than a single instant snapshot.",
+        },
+    },
+    ReferenceEntry {
+        id: "derived.future",
+        category: "derived",
+        panel: "alerts",
+        status: MetricStatus::Planned,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &[
+            "health index",
+            "synthetic health indices",
+            "anomaly detection",
+            "correlation engine",
+            "correlation engine os app",
+            "correlation engine os ↔ app",
+        ],
+        tags: &["derived", "health", "anomaly", "correlation", "planned"],
+        fr: ReferenceText {
+            title: "Indices et intelligence derives",
+            summary: "Indices de sante, anomalies et correlation, encore planifies.",
+            beginner: "Ces aides doivent simplifier la lecture, pas la rendre opaque.",
+            expert: "Ils doivent rester relies aux signaux bruts et explicables.",
+        },
+        en: ReferenceText {
+            title: "Derived intelligence",
+            summary: "Health indices, anomaly detection and correlation, still planned.",
+            beginner: "These helpers should simplify reading, not make it opaque.",
+            expert: "They must remain grounded in raw explainable signals.",
+        },
+    },
+    ReferenceEntry {
+        id: "infra.future",
+        category: "infrastructure",
+        panel: "linux",
+        status: MetricStatus::Planned,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &[
+            "numa",
+            "numa metrics",
+            "ipc",
+            "ipc monitoring",
+            "security events",
+            "ebpf",
+            "ebpf option",
+        ],
+        tags: &["infrastructure", "numa", "ipc", "security", "ebpf", "planned"],
+        fr: ReferenceText {
+            title: "Signaux infrastructure avances",
+            summary: "NUMA, IPC, securite et eBPF font partie de la surface future.",
+            beginner: "Pas indispensables pour une V1 locale credible.",
+            expert: "Ils doivent vivre dans la meme base de reference meme s'ils ne sont pas encore rendus.",
+        },
+        en: ReferenceText {
+            title: "Advanced infrastructure signals",
+            summary: "NUMA, IPC, security and eBPF belong to the future surface area.",
+            beginner: "Not required for a credible local V1.",
+            expert: "They should live in the same reference base even before they are rendered.",
+        },
+    },
+    ReferenceEntry {
+        id: "runtime.current",
+        category: "runtime",
+        panel: "alerts",
+        status: MetricStatus::Implemented,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Beginner,
+        aliases: &[
+            "tui mode",
+            "json export",
+            "csv export",
+            "prometheus text export",
+            "record mode",
+            "replay mode",
+            "service install scaffolding",
+        ],
+        tags: &["runtime", "tui", "json", "csv", "prometheus", "record", "replay", "service"],
+        fr: ReferenceText {
+            title: "Capacites runtime actuelles",
+            summary: "Regroupe les modes et exports deja disponibles dans Pulsar.",
+            beginner: "Ce bloc couvre les fonctions que l'on peut deja utiliser au quotidien.",
+            expert: "Le niveau de profondeur varie encore selon OS et selon la surface runtime concernee.",
+        },
+        en: ReferenceText {
+            title: "Current runtime capabilities",
+            summary: "Groups the modes and exports already available in Pulsar.",
+            beginner: "This block covers the features already usable day to day.",
+            expert: "Depth still varies by OS and by the runtime surface involved.",
+        },
+    },
+    ReferenceEntry {
+        id: "runtime.future",
+        category: "runtime",
+        panel: "alerts",
+        status: MetricStatus::Planned,
+        ui_visibility: UiVisibility::IndexedOnly,
+        audience: Audience::Expert,
+        aliases: &["multi-host / distributed mode", "enterprise controls"],
+        tags: &["runtime", "distributed", "enterprise", "planned"],
+        fr: ReferenceText {
+            title: "Capacites runtime futures",
+            summary: "Modes distribues et controles enterprise, encore hors scope courant.",
+            beginner: "Pas necessaire pour la V1 locale actuelle.",
+            expert: "Doit vivre dans la meme base de reference meme avant implementation.",
+        },
+        en: ReferenceText {
+            title: "Future runtime capabilities",
+            summary: "Distributed mode and enterprise controls, still outside current scope.",
+            beginner: "Not required for the current local V1.",
+            expert: "Should live in the same reference base even before implementation.",
         },
     },
 ];
@@ -372,7 +1078,10 @@ fn to_view(entry: &ReferenceEntry, locale: Locale) -> ReferenceEntryView {
 
     ReferenceEntryView {
         id: entry.id,
+        category: entry.category,
         panel: entry.panel,
+        status: entry.status,
+        ui_visibility: entry.ui_visibility,
         audience: entry.audience,
         title: text.title,
         summary: text.summary,
@@ -449,5 +1158,42 @@ mod tests {
     fn panel_query_match_is_detected() {
         assert!(panel_matches_query("memory", "swap"));
         assert!(!panel_matches_query("network", "swap"));
+    }
+
+    #[test]
+    fn metrics_checklist_rows_are_covered_by_reference_catalog() {
+        let checklist = include_str!("../docs/metrics-checklist.md");
+        let missing: Vec<String> = checklist
+            .lines()
+            .filter_map(extract_checklist_label)
+            .filter(|label| search(label, Locale::En).is_empty())
+            .map(str::to_string)
+            .collect();
+
+        assert!(
+            missing.is_empty(),
+            "metrics checklist entries missing from reference catalog: {:?}",
+            missing
+        );
+    }
+
+    fn extract_checklist_label(line: &str) -> Option<&str> {
+        if !line.starts_with("| [") {
+            return None;
+        }
+
+        let mut cells = line.split('|').map(str::trim);
+        let _leading = cells.next()?;
+        let checklist = cells.next()?;
+        let label = checklist
+            .trim_start_matches("[x]")
+            .trim_start_matches("[ ]")
+            .trim();
+
+        if label.is_empty() {
+            None
+        } else {
+            Some(label)
+        }
     }
 }
