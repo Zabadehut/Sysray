@@ -1,4 +1,5 @@
 pub mod alerts_widget;
+pub mod analysis_widget;
 pub mod cpu_widget;
 pub mod disk_widget;
 pub mod linux_widget;

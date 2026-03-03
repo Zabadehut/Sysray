@@ -29,6 +29,8 @@ TUI knowledge helper:
 - `/` opens reference search
 - `?` toggles the technical index
 - `1`..`6` switch operator presets (`overview`, `storage`, `network`, `process`, `pressure`, `full`)
+- `7`..`0` open expert local diagnostics (`pressure+`, `network+`, `jvm+`, `disk+`)
+- `-` returns from the expert submenu to the normal monitoring layout
 - `v` toggles compact vs detailed views
 - `i` switches the TUI language and keeps the index aligned with it (`fr` / `en`)
 - `s` toggles the system panel

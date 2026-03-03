@@ -9,7 +9,7 @@ use ratatui::{
 
 pub struct ReferenceWidgetState<'a> {
     pub query: &'a str,
-    pub mode: &'a str,
+    pub mode: String,
     pub locale: Locale,
     pub visible_count: usize,
     pub indexed_only_count: usize,

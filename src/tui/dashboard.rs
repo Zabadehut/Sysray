@@ -4,8 +4,10 @@ use crate::tui::{
     i18n::text,
     theme::Theme,
     widgets::{
-        alerts_widget, cpu_widget, disk_widget, linux_widget, memory_widget, network_widget,
-        process_widget, reference_widget, system_widget,
+        alerts_widget,
+        analysis_widget::{self, SpecialistView},
+        cpu_widget, disk_widget, linux_widget, memory_widget, network_widget, process_widget,
+        reference_widget, system_widget,
     },
 };
 use ratatui::{
@@ -105,6 +107,7 @@ pub struct Dashboard {
     visibility: PanelVisibility,
     operator_mode: OperatorMode,
     detail_level: DetailLevel,
+    specialist_view: SpecialistView,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -141,6 +144,7 @@ impl Dashboard {
             visibility: PanelVisibility::default(),
             operator_mode: OperatorMode::Full,
             detail_level: DetailLevel::Detailed,
+            specialist_view: SpecialistView::None,
         }
     }
 
@@ -165,8 +169,23 @@ impl Dashboard {
     }
 
     pub fn set_operator_mode(&mut self, mode: OperatorMode) {
+        self.specialist_view = SpecialistView::None;
         self.operator_mode = mode;
         self.visibility = mode.visibility();
+    }
+
+    pub fn set_specialist_view(&mut self, specialist: SpecialistView) {
+        self.specialist_view = specialist;
+        self.operator_mode = match specialist {
+            SpecialistView::None => self.operator_mode,
+            SpecialistView::Pressure => OperatorMode::Pressure,
+            SpecialistView::Network => OperatorMode::Network,
+            SpecialistView::Jvm => OperatorMode::Process,
+            SpecialistView::DiskPressure => OperatorMode::Storage,
+        };
+        if specialist != SpecialistView::None {
+            self.visibility = self.operator_mode.visibility();
+        }
     }
 
     pub fn render(&self, frame: &mut Frame, snapshot: &Snapshot, reference: &ReferenceUiState) {
@@ -249,6 +268,24 @@ impl Dashboard {
         snapshot: &Snapshot,
         reference: &ReferenceUiState,
     ) {
+        let monitoring_area = if self.specialist_view != SpecialistView::None {
+            let rows = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(5), Constraint::Min(0)])
+                .split(area);
+            analysis_widget::render(
+                frame,
+                rows[0],
+                snapshot,
+                self.specialist_view,
+                self.locale,
+                &self.theme,
+            );
+            rows[1]
+        } else {
+            area
+        };
+
         let left_panels = [Panel::System, Panel::Cpu, Panel::Memory, Panel::Linux];
         let right_panels = [Panel::Disk, Panel::Network, Panel::Alerts];
 
@@ -266,7 +303,7 @@ impl Dashboard {
                 let rows = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints([Constraint::Length(25), Constraint::Min(0)])
-                    .split(area);
+                    .split(monitoring_area);
                 self.render_top(frame, rows[0], snapshot, has_left, has_right, reference);
                 process_widget::render(
                     frame,
@@ -278,10 +315,17 @@ impl Dashboard {
                     self.panel_highlighted(Panel::Process, reference),
                 );
             }
-            (true, false) => self.render_top(frame, area, snapshot, has_left, has_right, reference),
+            (true, false) => self.render_top(
+                frame,
+                monitoring_area,
+                snapshot,
+                has_left,
+                has_right,
+                reference,
+            ),
             (false, true) => process_widget::render(
                 frame,
-                area,
+                monitoring_area,
                 &snapshot.processes,
                 self.locale,
                 matches!(self.detail_level, DetailLevel::Detailed),
@@ -295,7 +339,7 @@ impl Dashboard {
                         "Tous les panneaux sont caches. Basculer avec s/c/m/l/d/n/a/p.",
                         "All panels hidden. Toggle with s/c/m/l/d/n/a/p.",
                     )),
-                    area,
+                    monitoring_area,
                 );
             }
         }
@@ -440,7 +484,7 @@ impl Dashboard {
             area,
             reference_widget::ReferenceWidgetState {
                 query: &reference.query,
-                mode: self.operator_mode.label(self.locale),
+                mode: self.reference_context_label(),
                 locale: self.locale,
                 visible_count,
                 indexed_only_count: hits.len().saturating_sub(visible_count),
@@ -459,7 +503,13 @@ impl Dashboard {
                 .map(|(index, entry)| SearchHit {
                     score: self
                         .operator_mode
-                        .reference_bias(entry.panel, entry.category, index),
+                        .reference_bias(entry.panel, entry.category, index)
+                        + self.specialist_view.reference_bias(
+                            entry.panel,
+                            entry.category,
+                            entry.id,
+                            index,
+                        ),
                     entry,
                 })
                 .collect();
@@ -515,11 +565,11 @@ impl Dashboard {
 
     fn footer_height(&self, width: u16) -> u16 {
         if width >= 180 {
-            2
-        } else if width >= 120 {
             3
-        } else {
+        } else if width >= 120 {
             4
+        } else {
+            5
         }
     }
 
@@ -708,6 +758,40 @@ impl Dashboard {
             Span::raw(format!(":{}  ", OperatorMode::Full.label(self.locale))),
         ]);
 
+        let expert = Line::from(vec![
+            hotkey_span("7", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}  ",
+                SpecialistView::Pressure.label(self.locale)
+            )),
+            hotkey_span("8", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", SpecialistView::Network.label(self.locale))),
+            hotkey_span("9", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", SpecialistView::Jvm.label(self.locale))),
+            hotkey_span("0", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}  ",
+                SpecialistView::DiskPressure.label(self.locale)
+            )),
+            hotkey_span("-", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}  ",
+                text(self.locale, "retour normal", "clear expert")
+            )),
+            Span::styled(
+                format!(
+                    "{}:{}",
+                    text(self.locale, "expert", "expert"),
+                    self.specialist_view.label(self.locale)
+                ),
+                if self.specialist_view == SpecialistView::None {
+                    self.theme.muted_style()
+                } else {
+                    self.theme.highlight_style()
+                },
+            ),
+        ]);
+
         let panels = Line::from(vec![
             panel_toggle_span(
                 "s",
@@ -819,6 +903,7 @@ impl Dashboard {
         if width >= 180 {
             vec![
                 nav,
+                expert,
                 Line::from(
                     vec![modes.spans.into_iter().collect::<Vec<_>>()]
                         .into_iter()
@@ -833,6 +918,7 @@ impl Dashboard {
         } else if width >= 120 {
             vec![
                 nav,
+                expert,
                 modes,
                 Line::from(
                     panels
@@ -844,7 +930,19 @@ impl Dashboard {
                 ),
             ]
         } else {
-            vec![nav, modes, panels, status]
+            vec![nav, expert, modes, panels, status]
+        }
+    }
+
+    fn reference_context_label(&self) -> String {
+        if self.specialist_view == SpecialistView::None {
+            self.operator_mode.label(self.locale).to_string()
+        } else {
+            format!(
+                "{} + {}",
+                self.operator_mode.label(self.locale),
+                self.specialist_view.label(self.locale)
+            )
         }
     }
 }
@@ -986,6 +1084,45 @@ impl OperatorMode {
             10_000usize.saturating_sub(index)
         } else {
             1_000usize.saturating_sub(index)
+        }
+    }
+}
+
+impl SpecialistView {
+    fn reference_bias(self, panel: &str, category: &str, id: &str, index: usize) -> usize {
+        let preferred = match self {
+            SpecialistView::None => false,
+            SpecialistView::Pressure => {
+                matches!(panel, "memory" | "linux" | "disk" | "alerts")
+                    || matches!(category, "memory" | "linux" | "disk")
+                    || id.contains("pressure")
+                    || id.contains("psi")
+            }
+            SpecialistView::Network => {
+                matches!(panel, "network" | "alerts")
+                    || matches!(category, "network")
+                    || id.contains("tcp")
+                    || id.contains("udp")
+            }
+            SpecialistView::Jvm => {
+                matches!(panel, "process" | "cpu" | "memory")
+                    || matches!(category, "process")
+                    || id.contains("jvm")
+                    || id.contains("thread")
+            }
+            SpecialistView::DiskPressure => {
+                matches!(panel, "disk" | "process" | "linux" | "alerts")
+                    || matches!(category, "disk" | "process")
+                    || id.contains("await")
+                    || id.contains("queue")
+                    || id.contains("latency")
+            }
+        };
+
+        if preferred {
+            20_000usize.saturating_sub(index)
+        } else {
+            0
         }
     }
 }

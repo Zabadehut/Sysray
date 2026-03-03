@@ -7,6 +7,7 @@ use crate::collectors::Snapshot;
 use crate::config::TuiConfig;
 use crate::engine::scheduler::TickEvent;
 use crate::reference::Locale;
+use crate::tui::widgets::analysis_widget::SpecialistView;
 use anyhow::Result;
 use crossterm::{
     event::{self, Event, KeyCode},
@@ -172,6 +173,26 @@ pub async fn run_tui(config: &TuiConfig, mut rx: broadcast::Receiver<TickEvent>)
                     }
                     KeyCode::Char('6') => {
                         dashboard.set_operator_mode(OperatorMode::Full);
+                        terminal.clear()?;
+                    }
+                    KeyCode::Char('7') => {
+                        dashboard.set_specialist_view(SpecialistView::Pressure);
+                        terminal.clear()?;
+                    }
+                    KeyCode::Char('8') => {
+                        dashboard.set_specialist_view(SpecialistView::Network);
+                        terminal.clear()?;
+                    }
+                    KeyCode::Char('9') => {
+                        dashboard.set_specialist_view(SpecialistView::Jvm);
+                        terminal.clear()?;
+                    }
+                    KeyCode::Char('0') => {
+                        dashboard.set_specialist_view(SpecialistView::DiskPressure);
+                        terminal.clear()?;
+                    }
+                    KeyCode::Char('-') => {
+                        dashboard.set_specialist_view(SpecialistView::None);
                         terminal.clear()?;
                     }
                     KeyCode::Up if reference.visible => {
