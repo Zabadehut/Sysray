@@ -19,6 +19,7 @@ pub enum SpecialistView {
     Network,
     Jvm,
     DiskPressure,
+    DiskInventory,
 }
 
 impl SpecialistView {
@@ -29,6 +30,7 @@ impl SpecialistView {
             Self::Network => text(locale, "reseau+", "network+"),
             Self::Jvm => text(locale, "jvm+", "jvm+"),
             Self::DiskPressure => text(locale, "disque+", "disk+"),
+            Self::DiskInventory => text(locale, "inventaire+", "inventory+"),
         }
     }
 }
@@ -76,6 +78,7 @@ pub fn render_summary(
         SpecialistView::Network => network_summary_lines(snapshot, locale, theme),
         SpecialistView::Jvm => jvm_summary_lines(snapshot, locale, theme),
         SpecialistView::DiskPressure => disk_summary_lines(snapshot, locale, theme),
+        SpecialistView::DiskInventory => disk_inventory_summary_lines(snapshot, locale, theme),
         SpecialistView::None => Vec::new(),
     };
 
@@ -105,6 +108,9 @@ pub fn render_drilldown(
         SpecialistView::Jvm => render_jvm_drilldown(frame, area, snapshot, locale, detailed, theme),
         SpecialistView::DiskPressure => {
             render_disk_drilldown(frame, area, snapshot, locale, detailed, theme)
+        }
+        SpecialistView::DiskInventory => {
+            render_disk_inventory_drilldown(frame, area, snapshot, locale, detailed, theme)
         }
         SpecialistView::None => {}
     }
@@ -451,6 +457,30 @@ fn render_disk_drilldown(
             theme,
         );
     }
+}
+
+fn render_disk_inventory_drilldown(
+    frame: &mut Frame,
+    area: Rect,
+    snapshot: &Snapshot,
+    locale: Locale,
+    detailed: bool,
+    theme: &Theme,
+) {
+    let cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(62), Constraint::Percentage(38)])
+        .split(area);
+
+    render_disk_inventory_table(frame, cols[0], snapshot, locale, detailed, theme);
+
+    let right_rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
+        .split(cols[1]);
+
+    render_disk_inventory_detail_table(frame, right_rows[0], snapshot, locale, theme);
+    render_disk_inventory_class_table(frame, right_rows[1], snapshot, locale, theme);
 }
 
 fn render_process_pressure_table(
@@ -1325,6 +1355,252 @@ fn render_disk_lens_table(
     frame.render_widget(table, area);
 }
 
+#[derive(Clone, Copy)]
+struct DiskTreeRow<'a> {
+    depth: usize,
+    disk: &'a DiskMetrics,
+}
+
+fn render_disk_inventory_table(
+    frame: &mut Frame,
+    area: Rect,
+    snapshot: &Snapshot,
+    locale: Locale,
+    detailed: bool,
+    theme: &Theme,
+) {
+    let rows_data = disk_tree_rows(snapshot);
+    let rows = rows_data
+        .into_iter()
+        .take(if detailed { 12 } else { 8 })
+        .map(|row| {
+            let tree_label = format!("{}{}", "  ".repeat(row.depth), row.disk.device);
+            let mut cells = vec![
+                Cell::from(truncate(&tree_label, 22)),
+                Cell::from(truncate(
+                    if row.disk.volume_kind.is_empty() {
+                        &row.disk.structure
+                    } else {
+                        &row.disk.volume_kind
+                    },
+                    14,
+                )),
+                Cell::from(truncate(&row.disk.filesystem, 9)),
+                Cell::from(truncate(&row.disk.protocol_hint, 10)),
+                Cell::from(truncate(&row.disk.mount_point, 12)),
+            ];
+            if detailed {
+                cells.push(Cell::from(truncate(&row.disk.reference, 12)));
+                cells.push(Cell::from(truncate(&row.disk.logical_stack.join(">"), 16)));
+            }
+            Row::new(cells)
+        })
+        .collect::<Vec<_>>();
+
+    let mut header = vec![
+        Cell::from(text(locale, "Tree", "Tree")),
+        Cell::from(text(locale, "Kind", "Kind")),
+        Cell::from(text(locale, "FS", "FS")),
+        Cell::from(text(locale, "Proto", "Proto")),
+        Cell::from(text(locale, "Mount", "Mount")),
+    ];
+    let mut widths = vec![
+        Constraint::Percentage(36),
+        Constraint::Length(15),
+        Constraint::Length(10),
+        Constraint::Length(11),
+        Constraint::Length(13),
+    ];
+    if detailed {
+        header.push(Cell::from(text(locale, "Ref", "Ref")));
+        header.push(Cell::from(text(locale, "Stack", "Stack")));
+        widths.push(Constraint::Length(13));
+        widths.push(Constraint::Percentage(24));
+    }
+
+    let table = metric_table(
+        text(locale, " ◉ INVENTAIRE DISQUE ", " ◉ DISK INVENTORY "),
+        header,
+        rows,
+        widths,
+        theme,
+    );
+    frame.render_widget(table, area);
+}
+
+fn render_disk_inventory_detail_table(
+    frame: &mut Frame,
+    area: Rect,
+    snapshot: &Snapshot,
+    locale: Locale,
+    theme: &Theme,
+) {
+    let focus = snapshot.disks.iter().max_by(|a, b| {
+        a.util_pct
+            .partial_cmp(&b.util_pct)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| {
+                a.await_ms
+                    .partial_cmp(&b.await_ms)
+                    .unwrap_or(Ordering::Equal)
+            })
+    });
+
+    let rows = if let Some(disk) = focus {
+        vec![
+            key_value_row(
+                text(locale, "Focus", "Focus"),
+                disk.device.clone(),
+                body_style(theme),
+            ),
+            key_value_row(
+                text(locale, "Kind", "Kind"),
+                if disk.volume_kind.is_empty() {
+                    disk.structure.clone()
+                } else {
+                    disk.volume_kind.clone()
+                },
+                body_style(theme),
+            ),
+            key_value_row(
+                text(locale, "FS family", "FS family"),
+                if disk.filesystem_family.is_empty() {
+                    "-".to_string()
+                } else {
+                    disk.filesystem_family.clone()
+                },
+                body_style(theme),
+            ),
+            key_value_row(
+                text(locale, "Stack path", "Stack path"),
+                if disk.logical_stack.is_empty() {
+                    "-".to_string()
+                } else {
+                    truncate(&disk.logical_stack.join(" > "), 36)
+                },
+                body_style(theme),
+            ),
+            key_value_row(
+                text(locale, "Refs", "Refs"),
+                truncate(
+                    &first_non_empty(&[
+                        disk.uuid.as_str(),
+                        disk.part_uuid.as_str(),
+                        disk.reference.as_str(),
+                        disk.serial.as_str(),
+                    ]),
+                    36,
+                ),
+                body_style(theme),
+            ),
+            key_value_row(
+                text(locale, "Flags", "Flags"),
+                disk_flag_summary(disk),
+                body_style(theme),
+            ),
+            key_value_row(
+                text(locale, "Links", "Links"),
+                format!("slv:{} hold:{}", disk.slaves.len(), disk.holders.len()),
+                body_style(theme),
+            ),
+        ]
+    } else {
+        vec![key_value_row(
+            text(locale, "Focus", "Focus"),
+            "-".to_string(),
+            body_style(theme),
+        )]
+    };
+
+    let table = metric_table(
+        text(locale, " ◉ INVENTORY DETAIL ", " ◉ INVENTORY DETAIL "),
+        vec![
+            Cell::from(text(locale, "Signal", "Signal")),
+            Cell::from(text(locale, "Valeur", "Value")),
+        ],
+        rows,
+        [Constraint::Percentage(38), Constraint::Percentage(62)],
+        theme,
+    );
+    frame.render_widget(table, area);
+}
+
+fn render_disk_inventory_class_table(
+    frame: &mut Frame,
+    area: Rect,
+    snapshot: &Snapshot,
+    locale: Locale,
+    theme: &Theme,
+) {
+    let roots = snapshot
+        .disks
+        .iter()
+        .filter(|disk| disk.parent.is_empty())
+        .count();
+    let mapped = snapshot
+        .disks
+        .iter()
+        .filter(|disk| disk.volume_kind.contains("mapped") || disk.structure.contains("mapper"))
+        .count();
+    let raid = snapshot
+        .disks
+        .iter()
+        .filter(|disk| disk.volume_kind.contains("raid") || disk.protocol_hint.contains("raid"))
+        .count();
+    let filesystems = snapshot
+        .disks
+        .iter()
+        .filter(|disk| !disk.filesystem.is_empty())
+        .count();
+    let removable = snapshot.disks.iter().filter(|disk| disk.removable).count();
+    let rotational = snapshot.disks.iter().filter(|disk| disk.rotational).count();
+
+    let rows = vec![
+        key_value_row(
+            text(locale, "Roots", "Roots"),
+            roots.to_string(),
+            body_style(theme),
+        ),
+        key_value_row(
+            text(locale, "Mapped", "Mapped"),
+            mapped.to_string(),
+            body_style(theme),
+        ),
+        key_value_row(
+            text(locale, "RAID", "RAID"),
+            raid.to_string(),
+            body_style(theme),
+        ),
+        key_value_row(
+            text(locale, "Mounted FS", "Mounted FS"),
+            filesystems.to_string(),
+            body_style(theme),
+        ),
+        key_value_row(
+            text(locale, "Removable", "Removable"),
+            removable.to_string(),
+            body_style(theme),
+        ),
+        key_value_row(
+            text(locale, "Rotational", "Rotational"),
+            rotational.to_string(),
+            body_style(theme),
+        ),
+    ];
+
+    let table = metric_table(
+        text(locale, " ◉ INVENTORY CLASSES ", " ◉ INVENTORY CLASSES "),
+        vec![
+            Cell::from(text(locale, "Signal", "Signal")),
+            Cell::from(text(locale, "Valeur", "Value")),
+        ],
+        rows,
+        [Constraint::Percentage(52), Constraint::Percentage(48)],
+        theme,
+    );
+    frame.render_widget(table, area);
+}
+
 fn render_focus_notes(
     frame: &mut Frame,
     area: Rect,
@@ -1636,6 +1912,58 @@ fn disk_summary_lines(snapshot: &Snapshot, locale: Locale, theme: &Theme) -> Vec
     ]
 }
 
+fn disk_inventory_summary_lines(
+    snapshot: &Snapshot,
+    locale: Locale,
+    theme: &Theme,
+) -> Vec<Line<'static>> {
+    let roots = snapshot
+        .disks
+        .iter()
+        .filter(|disk| disk.parent.is_empty())
+        .count();
+    let mapped = snapshot
+        .disks
+        .iter()
+        .filter(|disk| disk.volume_kind.contains("mapped") || disk.structure.contains("mapper"))
+        .count();
+    let fs_count = snapshot
+        .disks
+        .iter()
+        .filter(|disk| !disk.filesystem.is_empty())
+        .count();
+
+    vec![
+        Line::from(vec![
+            Span::styled(
+                text(locale, "roots:", "roots:"),
+                theme.highlight_style(),
+            ),
+            Span::raw(format!(" {roots}  ")),
+            Span::styled(
+                text(locale, "mapped:", "mapped:"),
+                theme.highlight_style(),
+            ),
+            Span::raw(format!(" {mapped}  ")),
+            Span::styled(
+                text(locale, "fs:", "fs:"),
+                theme.highlight_style(),
+            ),
+            Span::raw(format!(" {fs_count}")),
+        ]),
+        Line::from(text(
+            locale,
+            "vue arborescente locale pour lire parentage, stacks logiques et refs stables",
+            "local tree view for parentage, logical stacks and stable refs",
+        )),
+        Line::from(text(
+            locale,
+            "utile pour lire partition, mapper, raid, volume et filesystem sans quitter Pulsar",
+            "useful to read partition, mapper, raid, volume and filesystem layers without leaving Pulsar",
+        )),
+    ]
+}
+
 fn pressure_focus_lines(snapshot: &Snapshot, locale: Locale, theme: &Theme) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
     let memory_pressure = snapshot.computed.memory_pressure * 100.0;
@@ -1943,6 +2271,83 @@ fn disk_focus_lines(snapshot: &Snapshot, locale: Locale, theme: &Theme) -> Vec<L
             },
         ),
     ]
+}
+
+fn disk_tree_rows(snapshot: &Snapshot) -> Vec<DiskTreeRow<'_>> {
+    use std::collections::{HashMap, HashSet};
+
+    let devices = snapshot
+        .disks
+        .iter()
+        .map(|disk| disk.device.clone())
+        .collect::<HashSet<_>>();
+    let mut children: HashMap<String, Vec<&DiskMetrics>> = HashMap::new();
+    let mut roots = snapshot
+        .disks
+        .iter()
+        .filter(|disk| disk.parent.is_empty() || !devices.contains(&disk.parent))
+        .collect::<Vec<_>>();
+
+    for disk in &snapshot.disks {
+        if !disk.parent.is_empty() {
+            children.entry(disk.parent.clone()).or_default().push(disk);
+        }
+    }
+
+    roots.sort_by(|a, b| a.device.cmp(&b.device));
+    for child_list in children.values_mut() {
+        child_list.sort_by(|a, b| a.device.cmp(&b.device));
+    }
+
+    let mut rows = Vec::new();
+    for root in roots {
+        append_disk_tree_rows(root, 0, &children, &mut rows);
+    }
+    rows
+}
+
+fn append_disk_tree_rows<'a>(
+    disk: &'a DiskMetrics,
+    depth: usize,
+    children: &std::collections::HashMap<String, Vec<&'a DiskMetrics>>,
+    out: &mut Vec<DiskTreeRow<'a>>,
+) {
+    out.push(DiskTreeRow { depth, disk });
+    if let Some(child_list) = children.get(&disk.device) {
+        for child in child_list {
+            append_disk_tree_rows(child, depth + 1, children, out);
+        }
+    }
+}
+
+fn first_non_empty(values: &[&str]) -> String {
+    values
+        .iter()
+        .find(|value| !value.is_empty())
+        .copied()
+        .unwrap_or("-")
+        .to_string()
+}
+
+fn disk_flag_summary(disk: &DiskMetrics) -> String {
+    let mut flags = Vec::new();
+    if disk.rotational {
+        flags.push("rot");
+    }
+    if disk.removable {
+        flags.push("rm");
+    }
+    if disk.read_only {
+        flags.push("ro");
+    }
+    if !disk.scheduler.is_empty() {
+        flags.push(&disk.scheduler);
+    }
+    if flags.is_empty() {
+        "-".to_string()
+    } else {
+        flags.join(",")
+    }
 }
 
 fn metric_table<'a, I>(

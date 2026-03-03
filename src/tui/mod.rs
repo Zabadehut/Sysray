@@ -191,6 +191,10 @@ pub async fn run_tui(config: &TuiConfig, mut rx: broadcast::Receiver<TickEvent>)
                         dashboard.set_specialist_view(SpecialistView::DiskPressure);
                         terminal.clear()?;
                     }
+                    KeyCode::Char('g') | KeyCode::Char('G') => {
+                        dashboard.set_specialist_view(SpecialistView::DiskInventory);
+                        terminal.clear()?;
+                    }
                     KeyCode::Char('-') => {
                         dashboard.set_specialist_view(SpecialistView::None);
                         terminal.clear()?;

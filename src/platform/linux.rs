@@ -213,6 +213,7 @@ pub fn read_disk_inventory() -> Result<Vec<RawDiskInventory>> {
     {
         flatten_lsblk_node(device, &mut inventory);
     }
+    enrich_linux_disk_inventory(&mut inventory);
     Ok(inventory)
 }
 
@@ -325,7 +326,9 @@ fn flatten_lsblk_node(node: &Value, out: &mut Vec<RawDiskInventory>) {
         device,
         parent: json_string(node, "pkname"),
         structure: json_string(node, "type").unwrap_or_default(),
+        volume_kind: String::new(),
         filesystem: json_string(node, "fstype").unwrap_or_default(),
+        filesystem_family: String::new(),
         label: json_string(node, "label").unwrap_or_default(),
         uuid: json_string(node, "uuid").unwrap_or_default(),
         part_uuid: json_string(node, "partuuid").unwrap_or_default(),
@@ -333,7 +336,14 @@ fn flatten_lsblk_node(node: &Value, out: &mut Vec<RawDiskInventory>) {
         serial: json_string(node, "serial").unwrap_or_default(),
         transport: json_string(node, "tran").unwrap_or_default(),
         reference: json_string(node, "wwn").unwrap_or_default(),
+        scheduler: String::new(),
+        rotational: None,
+        removable: None,
+        read_only: None,
         mount_points: json_string_list(node, "mountpoints"),
+        logical_stack: Vec::new(),
+        slaves: Vec::new(),
+        holders: Vec::new(),
         children,
     });
 
@@ -345,6 +355,186 @@ fn flatten_lsblk_node(node: &Value, out: &mut Vec<RawDiskInventory>) {
     {
         flatten_lsblk_node(child, out);
     }
+}
+
+fn enrich_linux_disk_inventory(items: &mut [RawDiskInventory]) {
+    let parent_map: HashMap<String, Option<String>> = items
+        .iter()
+        .map(|item| (item.device.clone(), item.parent.clone()))
+        .collect();
+
+    for item in items.iter_mut() {
+        let sys_path = sys_block_path(&item.device);
+
+        if item.structure.is_empty() {
+            item.structure = infer_linux_structure(&item.device, &sys_path);
+        }
+        if item.transport.is_empty() {
+            item.transport = read_string_file(&sys_path.join("device/transport"))
+                .or_else(|| read_string_file(&sys_path.join("device/protocol")))
+                .unwrap_or_else(|| infer_linux_transport(&item.device).to_string());
+        }
+        if item.reference.is_empty() {
+            item.reference = read_string_file(&sys_path.join("device/wwid"))
+                .or_else(|| read_string_file(&sys_path.join("device/serial")))
+                .unwrap_or_default();
+        }
+        item.scheduler = read_string_file(&sys_path.join("queue/scheduler"))
+            .map(|value| value.replace(['[', ']'], ""))
+            .unwrap_or_default();
+        item.rotational = read_bool_file(&sys_path.join("queue/rotational"));
+        item.removable = read_bool_file(&sys_path.join("removable"));
+        item.read_only = read_bool_file(&sys_path.join("ro"));
+        item.slaves = read_dir_names(&sys_path.join("slaves"));
+        item.holders = read_dir_names(&sys_path.join("holders"));
+        item.volume_kind = infer_linux_volume_kind(item);
+        item.filesystem_family = filesystem_family(&item.filesystem);
+        item.logical_stack = logical_stack_for(&item.device, &parent_map);
+    }
+}
+
+fn sys_block_path(device: &str) -> PathBuf {
+    Path::new("/sys/class/block").join(device)
+}
+
+fn infer_linux_structure(device: &str, sys_path: &Path) -> String {
+    if sys_path.join("partition").exists() {
+        "partition".to_string()
+    } else if device.starts_with("dm-") {
+        "mapper".to_string()
+    } else if device.starts_with("md") {
+        "raid".to_string()
+    } else if device.starts_with("loop") {
+        "loop".to_string()
+    } else if device.starts_with("sr") {
+        "optical".to_string()
+    } else if device.starts_with("nvme") {
+        "namespace".to_string()
+    } else if device.starts_with("zd") {
+        "zvol".to_string()
+    } else {
+        "disk".to_string()
+    }
+}
+
+fn infer_linux_transport(device: &str) -> &'static str {
+    if device.starts_with("nvme") {
+        "nvme"
+    } else if device.starts_with("vd") {
+        "virtio"
+    } else if device.starts_with("xvd") {
+        "xen"
+    } else if device.starts_with("sd") {
+        "scsi/sata"
+    } else if device.starts_with("dm-") {
+        "device-mapper"
+    } else if device.starts_with("md") {
+        "mdraid"
+    } else if device.starts_with("loop") {
+        "loop"
+    } else {
+        "block"
+    }
+}
+
+fn infer_linux_volume_kind(item: &RawDiskInventory) -> String {
+    if item.structure == "raid" || item.device.starts_with("md") {
+        "raid-array".to_string()
+    } else if item.structure == "mapper" || item.device.starts_with("dm-") {
+        if item.filesystem.eq_ignore_ascii_case("LVM2_member") {
+            "lvm-pv".to_string()
+        } else {
+            "mapped-volume".to_string()
+        }
+    } else if item.structure == "part" || item.structure == "partition" {
+        if item.filesystem.eq_ignore_ascii_case("LVM2_member") {
+            "lvm-member".to_string()
+        } else if item.filesystem.eq_ignore_ascii_case("linux_raid_member") {
+            "raid-member".to_string()
+        } else {
+            "partition".to_string()
+        }
+    } else if item.device.starts_with("loop") {
+        "loop-device".to_string()
+    } else if item.filesystem.eq_ignore_ascii_case("btrfs") {
+        "btrfs-volume".to_string()
+    } else if item.filesystem.eq_ignore_ascii_case("zfs_member") {
+        "zfs-member".to_string()
+    } else if item.filesystem.is_empty() {
+        "block-device".to_string()
+    } else {
+        "filesystem-volume".to_string()
+    }
+}
+
+fn filesystem_family(filesystem: &str) -> String {
+    let fs = filesystem.to_ascii_lowercase();
+    if fs.is_empty() {
+        String::new()
+    } else if matches!(fs.as_str(), "ext2" | "ext3" | "ext4") {
+        "ext".to_string()
+    } else if fs.starts_with("fat") || fs == "vfat" || fs == "exfat" {
+        "fat".to_string()
+    } else if fs == "ntfs" || fs == "refs" {
+        "windows".to_string()
+    } else if fs == "xfs" {
+        "xfs".to_string()
+    } else if fs == "btrfs" {
+        "btrfs".to_string()
+    } else if fs == "apfs" || fs == "hfs" || fs == "hfs+" {
+        "apple".to_string()
+    } else if fs.contains("lvm") {
+        "lvm".to_string()
+    } else if fs.contains("raid") {
+        "raid".to_string()
+    } else if fs.contains("zfs") {
+        "zfs".to_string()
+    } else {
+        fs
+    }
+}
+
+fn logical_stack_for(device: &str, parent_map: &HashMap<String, Option<String>>) -> Vec<String> {
+    let mut stack = Vec::new();
+    let mut current = Some(device.to_string());
+
+    while let Some(name) = current {
+        stack.push(name.clone());
+        current = parent_map.get(&name).cloned().flatten();
+    }
+
+    stack.reverse();
+    stack
+}
+
+fn read_string_file(path: &Path) -> Option<String> {
+    let value = fs::read_to_string(path).ok()?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn read_bool_file(path: &Path) -> Option<bool> {
+    match read_string_file(path)?.as_str() {
+        "1" | "y" | "yes" | "true" => Some(true),
+        "0" | "n" | "no" | "false" => Some(false),
+        _ => None,
+    }
+}
+
+fn read_dir_names(path: &Path) -> Vec<String> {
+    let mut names = fs::read_dir(path)
+        .ok()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.ok())
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .collect::<Vec<_>>();
+    names.sort();
+    names
 }
 
 fn json_string(node: &Value, field: &str) -> Option<String> {

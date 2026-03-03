@@ -98,7 +98,19 @@ pub fn read_disk_inventory() -> Result<Vec<RawDiskInventory>> {
             device: identifier,
             parent,
             structure,
+            volume_kind: if filesystem.is_empty() {
+                "block-device".to_string()
+            } else if structure == "apfs-container" {
+                "apfs-container".to_string()
+            } else {
+                "filesystem-volume".to_string()
+            },
             filesystem,
+            filesystem_family: if filesystem.eq_ignore_ascii_case("apfs") {
+                "apple".to_string()
+            } else {
+                filesystem.to_ascii_lowercase()
+            },
             label,
             uuid,
             part_uuid,
@@ -106,21 +118,33 @@ pub fn read_disk_inventory() -> Result<Vec<RawDiskInventory>> {
             serial,
             transport,
             reference,
+            scheduler: String::new(),
+            rotational: None,
+            removable: None,
+            read_only: None,
             mount_points: if mount_point.is_empty() {
                 Vec::new()
             } else {
                 vec![mount_point]
             },
+            logical_stack: Vec::new(),
+            slaves: Vec::new(),
+            holders: Vec::new(),
             children: Vec::new(),
         });
     }
 
     let children_by_parent = build_children_map(&inventory);
+    let parent_map: HashMap<String, Option<String>> = inventory
+        .iter()
+        .map(|item| (item.device.clone(), item.parent.clone()))
+        .collect();
     for item in &mut inventory {
         item.children = children_by_parent
             .get(&item.device)
             .cloned()
             .unwrap_or_default();
+        item.logical_stack = logical_stack_from_map(&item.device, &parent_map);
     }
 
     Ok(inventory)
@@ -446,6 +470,20 @@ fn build_children_map(items: &[RawDiskInventory]) -> HashMap<String, Vec<String>
         }
     }
     map
+}
+
+fn logical_stack_from_map(
+    device: &str,
+    parent_map: &HashMap<String, Option<String>>,
+) -> Vec<String> {
+    let mut stack = Vec::new();
+    let mut current = Some(device.to_string());
+    while let Some(name) = current {
+        stack.push(name.clone());
+        current = parent_map.get(&name).cloned().flatten();
+    }
+    stack.reverse();
+    stack
 }
 
 fn command_output(program: &str, args: &[&str]) -> Option<String> {

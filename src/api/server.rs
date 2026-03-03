@@ -83,7 +83,9 @@ struct DiskInventoryView {
     device: String,
     parent: String,
     structure: String,
+    volume_kind: String,
     filesystem: String,
+    filesystem_family: String,
     label: String,
     uuid: String,
     part_uuid: String,
@@ -91,8 +93,15 @@ struct DiskInventoryView {
     serial: String,
     transport: String,
     reference: String,
+    scheduler: String,
+    rotational: bool,
+    removable: bool,
+    read_only: bool,
     mount_point: String,
     mount_points: Vec<String>,
+    logical_stack: Vec<String>,
+    slaves: Vec<String>,
+    holders: Vec<String>,
     children: Vec<String>,
     protocol: String,
     media: String,
@@ -190,7 +199,9 @@ async fn inventory_handler(State(state): State<AppState>) -> impl IntoResponse {
                 } else {
                     disk.structure.clone()
                 },
+                volume_kind: disk.volume_kind.clone(),
                 filesystem: disk.filesystem.clone(),
+                filesystem_family: disk.filesystem_family.clone(),
                 label: disk.label.clone(),
                 uuid: disk.uuid.clone(),
                 part_uuid: disk.part_uuid.clone(),
@@ -198,8 +209,15 @@ async fn inventory_handler(State(state): State<AppState>) -> impl IntoResponse {
                 serial: disk.serial.clone(),
                 transport: disk.protocol_hint.clone(),
                 reference: disk.reference.clone(),
+                scheduler: disk.scheduler.clone(),
+                rotational: disk.rotational,
+                removable: disk.removable,
+                read_only: disk.read_only,
                 mount_point: disk.mount_point.clone(),
                 mount_points: disk.mount_points.clone(),
+                logical_stack: disk.logical_stack.clone(),
+                slaves: disk.slaves.clone(),
+                holders: disk.holders.clone(),
                 children: disk.children.clone(),
                 protocol: disk.protocol_hint.clone(),
                 media: disk.media_hint.clone(),
@@ -224,7 +242,15 @@ async fn inventory_handler(State(state): State<AppState>) -> impl IntoResponse {
                     } else {
                         disk.structure.clone()
                     },
+                    volume_kind: if disk.volume_kind.is_empty() {
+                        metrics
+                            .map(|item| item.volume_kind.clone())
+                            .unwrap_or_default()
+                    } else {
+                        disk.volume_kind.clone()
+                    },
                     filesystem: disk.filesystem.clone(),
+                    filesystem_family: disk.filesystem_family.clone(),
                     label: disk.label.clone(),
                     uuid: disk.uuid.clone(),
                     part_uuid: disk.part_uuid.clone(),
@@ -232,6 +258,10 @@ async fn inventory_handler(State(state): State<AppState>) -> impl IntoResponse {
                     serial: disk.serial.clone(),
                     transport: disk.transport.clone(),
                     reference: disk.reference.clone(),
+                    scheduler: disk.scheduler.clone(),
+                    rotational: disk.rotational.unwrap_or(false),
+                    removable: disk.removable.unwrap_or(false),
+                    read_only: disk.read_only.unwrap_or(false),
                     mount_point: metrics
                         .map(|item| item.mount_point.clone())
                         .filter(|value| !value.is_empty())
@@ -244,6 +274,15 @@ async fn inventory_handler(State(state): State<AppState>) -> impl IntoResponse {
                     } else {
                         disk.mount_points.clone()
                     },
+                    logical_stack: if disk.logical_stack.is_empty() {
+                        metrics
+                            .map(|item| item.logical_stack.clone())
+                            .unwrap_or_default()
+                    } else {
+                        disk.logical_stack.clone()
+                    },
+                    slaves: disk.slaves.clone(),
+                    holders: disk.holders.clone(),
                     children: disk.children.clone(),
                     protocol: metrics
                         .map(|item| item.protocol_hint.clone())

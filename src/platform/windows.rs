@@ -125,7 +125,15 @@ pub fn read_disk_inventory() -> Result<Vec<RawDiskInventory>> {
             device: json_field_string(&value, "Device").unwrap_or_default(),
             parent: json_field_string(&value, "Parent"),
             structure: json_field_string(&value, "Structure").unwrap_or_default(),
+            volume_kind: "windows-volume".to_string(),
             filesystem: json_field_string(&value, "FileSystem").unwrap_or_default(),
+            filesystem_family: json_field_string(&value, "FileSystem")
+                .map(|fs| match fs.to_ascii_lowercase().as_str() {
+                    "ntfs" | "refs" => "windows".to_string(),
+                    "fat" | "fat32" | "exfat" => "fat".to_string(),
+                    other => other.to_string(),
+                })
+                .unwrap_or_default(),
             label: json_field_string(&value, "Label").unwrap_or_default(),
             uuid: json_field_string(&value, "Uuid").unwrap_or_default(),
             part_uuid: json_field_string(&value, "PartUuid").unwrap_or_default(),
@@ -133,7 +141,14 @@ pub fn read_disk_inventory() -> Result<Vec<RawDiskInventory>> {
             serial: json_field_string(&value, "Serial").unwrap_or_default(),
             transport: json_field_string(&value, "Transport").unwrap_or_default(),
             reference: json_field_string(&value, "Reference").unwrap_or_default(),
+            scheduler: String::new(),
+            rotational: None,
+            removable: None,
+            read_only: None,
             mount_points,
+            logical_stack: Vec::new(),
+            slaves: Vec::new(),
+            holders: Vec::new(),
             children: Vec::new(),
         });
     }
@@ -147,11 +162,30 @@ pub fn read_disk_inventory() -> Result<Vec<RawDiskInventory>> {
                 .push(item.device.clone());
         }
     }
+    let parent_map: HashMap<String, Option<String>> = inventory
+        .iter()
+        .map(|item| (item.device.clone(), item.parent.clone()))
+        .collect();
     for item in &mut inventory {
         item.children = children_map.get(&item.device).cloned().unwrap_or_default();
+        item.logical_stack = logical_stack_from_map(&item.device, &parent_map);
     }
 
     Ok(inventory)
+}
+
+fn logical_stack_from_map(
+    device: &str,
+    parent_map: &HashMap<String, Option<String>>,
+) -> Vec<String> {
+    let mut stack = Vec::new();
+    let mut current = Some(device.to_string());
+    while let Some(name) = current {
+        stack.push(name.clone());
+        current = parent_map.get(&name).cloned().flatten();
+    }
+    stack.reverse();
+    stack
 }
 
 pub fn read_net_connections() -> RawNetConnections {

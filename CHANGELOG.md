@@ -13,12 +13,15 @@ The format is inspired by Keep a Changelog, and this project aims to follow Sema
 - Deeper disk readability in standard and expert TUI views
 - Cross-OS disk inventory collection with parent/child topology, filesystem, stable refs, model, serial, transport, and mount metadata
 - Richer `/inventory` payloads for disk topology consumers and operators
+- New `inventory+` expert TUI view for local disk tree and logical stack reading
+- Linux `sysfs` enrichment for scheduler, rotational/removable/read-only flags, and holder/slave links
 
 ### Changed
 
 - Project version advanced to `0.4.0`
 - The TUI footer now reads the package version directly from Cargo metadata
 - `disk+` and detailed disk tables now surface filesystem, parentage, and stable-ref cues closer to an `lsblk`-style reading
+- The shared reference catalog now covers volume kind and logical stack terminology for the new disk inventory view
 
 ## [0.4.0] - 2026-03-03
 

@@ -17,13 +17,22 @@ pub struct DiskMetrics {
     pub mount_points: Vec<String>,
     pub parent: String,
     pub structure: String,
+    pub volume_kind: String,
     pub filesystem: String,
+    pub filesystem_family: String,
     pub label: String,
     pub uuid: String,
     pub part_uuid: String,
     pub model: String,
     pub serial: String,
     pub reference: String,
+    pub scheduler: String,
+    pub rotational: bool,
+    pub removable: bool,
+    pub read_only: bool,
+    pub logical_stack: Vec<String>,
+    pub slaves: Vec<String>,
+    pub holders: Vec<String>,
     pub children: Vec<String>,
     pub structure_hint: String,
     pub protocol_hint: String,
@@ -164,8 +173,14 @@ fn collect_disks(c: &mut DiskCollector) -> Result<Vec<DiskMetrics>> {
             structure: metadata
                 .map(|item| item.structure.clone())
                 .unwrap_or_default(),
+            volume_kind: metadata
+                .map(|item| item.volume_kind.clone())
+                .unwrap_or_default(),
             filesystem: metadata
                 .map(|item| item.filesystem.clone())
+                .unwrap_or_default(),
+            filesystem_family: metadata
+                .map(|item| item.filesystem_family.clone())
                 .unwrap_or_default(),
             label: metadata.map(|item| item.label.clone()).unwrap_or_default(),
             uuid: metadata.map(|item| item.uuid.clone()).unwrap_or_default(),
@@ -176,6 +191,19 @@ fn collect_disks(c: &mut DiskCollector) -> Result<Vec<DiskMetrics>> {
             serial: metadata.map(|item| item.serial.clone()).unwrap_or_default(),
             reference: metadata
                 .map(|item| item.reference.clone())
+                .unwrap_or_default(),
+            scheduler: metadata
+                .map(|item| item.scheduler.clone())
+                .unwrap_or_default(),
+            rotational: metadata.and_then(|item| item.rotational).unwrap_or(false),
+            removable: metadata.and_then(|item| item.removable).unwrap_or(false),
+            read_only: metadata.and_then(|item| item.read_only).unwrap_or(false),
+            logical_stack: metadata
+                .map(|item| item.logical_stack.clone())
+                .unwrap_or_default(),
+            slaves: metadata.map(|item| item.slaves.clone()).unwrap_or_default(),
+            holders: metadata
+                .map(|item| item.holders.clone())
                 .unwrap_or_default(),
             children: metadata
                 .map(|item| item.children.clone())

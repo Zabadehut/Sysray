@@ -182,6 +182,7 @@ impl Dashboard {
             SpecialistView::Network => OperatorMode::Network,
             SpecialistView::Jvm => OperatorMode::Process,
             SpecialistView::DiskPressure => OperatorMode::Storage,
+            SpecialistView::DiskInventory => OperatorMode::Storage,
         };
         if specialist != SpecialistView::None {
             self.visibility = self.operator_mode.visibility();
@@ -788,6 +789,11 @@ impl Dashboard {
                 ":{}  ",
                 SpecialistView::DiskPressure.label(self.locale)
             )),
+            hotkey_span("g", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}  ",
+                SpecialistView::DiskInventory.label(self.locale)
+            )),
             hotkey_span("-", self.theme.highlight_style()),
             Span::raw(format!(
                 ":{}  ",
@@ -1131,6 +1137,15 @@ impl SpecialistView {
                     || id.contains("await")
                     || id.contains("queue")
                     || id.contains("latency")
+            }
+            SpecialistView::DiskInventory => {
+                matches!(panel, "disk" | "system")
+                    || matches!(category, "disk")
+                    || id.contains("filesystem")
+                    || id.contains("inventory")
+                    || id.contains("parent")
+                    || id.contains("reference")
+                    || id.contains("stack")
             }
         };
 
