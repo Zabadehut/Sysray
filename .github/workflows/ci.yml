@@ -91,6 +91,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       SYSRAY_DISABLE_LOGS: "1"
+      SYSRAY_SMOKE_MINIMAL: "1"
     strategy:
       fail-fast: false
       matrix:

@@ -104,6 +104,7 @@ fn build_registry(config: &Config) -> Registry {
     let col = &config.collectors;
     let secs = |n: u64| Duration::from_secs(n);
     let logs_disabled = std::env::var_os("SYSRAY_DISABLE_LOGS").is_some();
+    let smoke_minimal = std::env::var_os("SYSRAY_SMOKE_MINIMAL").is_some();
 
     if col.cpu {
         r.register(CpuCollector::new(), secs(col.cpu_interval_secs));
@@ -111,13 +112,13 @@ fn build_registry(config: &Config) -> Registry {
     if col.memory {
         r.register(MemoryCollector::new(), secs(col.memory_interval_secs));
     }
-    if col.disk {
+    if col.disk && !smoke_minimal {
         r.register(DiskCollector::new(), secs(col.disk_interval_secs));
     }
-    if col.network {
+    if col.network && !smoke_minimal {
         r.register(NetworkCollector::new(), secs(col.network_interval_secs));
     }
-    if col.process {
+    if col.process && !smoke_minimal {
         r.register(
             ProcessCollector::new(col.process_top_n, col.jvm_detection),
             secs(col.process_interval_secs),
@@ -126,7 +127,7 @@ fn build_registry(config: &Config) -> Registry {
     r.register(SystemCollector::new(), secs(col.system_interval_secs));
     #[cfg(target_os = "linux")]
     r.register(LinuxCollector::new(), secs(col.system_interval_secs));
-    if !logs_disabled {
+    if !logs_disabled && !smoke_minimal {
         r.register(
             LogsCollector::new(config.logs.clone()),
             secs(col.system_interval_secs),
