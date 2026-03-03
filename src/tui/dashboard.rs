@@ -699,7 +699,7 @@ impl Dashboard {
         logs: &LogUiState,
         width: u16,
     ) -> Vec<Line<'static>> {
-        let title = Span::styled(" ◉ PULSAR ", self.theme.title_style());
+        let title = Span::styled(" ◉ SYSRAY ", self.theme.title_style());
         let host_line = Line::from(vec![
             title.clone(),
             Span::raw(format!("  {hostname}  {os}  {uptime}  {ts}")),
