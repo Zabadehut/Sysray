@@ -391,6 +391,10 @@ impl Exporter for PrometheusExporter {
                 "# HELP pulsar_network_interface_info Portable interface classification hints\n",
             );
             out.push_str("# TYPE pulsar_network_interface_info gauge\n");
+            out.push_str(
+                "# HELP pulsar_network_inventory_flag Derived interface inventory flags\n",
+            );
+            out.push_str("# TYPE pulsar_network_inventory_flag gauge\n");
         }
         for net in &snapshot.networks {
             let lbl = format!(
@@ -401,6 +405,26 @@ impl Exporter for PrometheusExporter {
                 escape_label(&net.medium_hint)
             );
             out.push_str(&format!("pulsar_network_interface_info{{{}}} 1\n", lbl));
+            out.push_str(&format!(
+                "pulsar_network_inventory_flag{{interface=\"{}\",flag=\"loopback\"}} {}\n",
+                escape_label(&net.interface),
+                u8::from(net.topology_hint == "loopback")
+            ));
+            out.push_str(&format!(
+                "pulsar_network_inventory_flag{{interface=\"{}\",flag=\"virtual\"}} {}\n",
+                escape_label(&net.interface),
+                u8::from(net.medium_hint == "virtual" || net.medium_hint == "software")
+            ));
+            out.push_str(&format!(
+                "pulsar_network_inventory_flag{{interface=\"{}\",flag=\"wireless\"}} {}\n",
+                escape_label(&net.interface),
+                u8::from(net.family_hint == "wireless")
+            ));
+            out.push_str(&format!(
+                "pulsar_network_inventory_flag{{interface=\"{}\",flag=\"overlay\"}} {}\n",
+                escape_label(&net.interface),
+                u8::from(net.medium_hint == "overlay")
+            ));
             out.push_str(&format!(
                 "pulsar_network_rx_bytes_sec{{{}}} {}\n",
                 lbl, net.rx_bytes_sec

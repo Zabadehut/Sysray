@@ -364,6 +364,10 @@ fn enrich_linux_disk_inventory(items: &mut [RawDiskInventory]) {
     let dmsetup = read_dmsetup_map();
     let mdadm = read_mdadm_map();
     let btrfs = read_btrfs_map();
+    let findmnt = read_findmnt_map();
+    let zfs_mounts = read_zfs_mount_map();
+    let zpool = read_zpool_device_map();
+    let crypttab = read_crypttab_map();
     let parent_map: HashMap<String, Option<String>> = items
         .iter()
         .map(|item| (item.device.clone(), item.parent.clone()))
@@ -377,6 +381,9 @@ fn enrich_linux_disk_inventory(items: &mut [RawDiskInventory]) {
         let dmsetup_info = dmsetup.get(&item.device);
         let mdadm_info = mdadm.get(&item.device);
         let btrfs_info = btrfs.get(&item.device);
+        let findmnt_info = findmnt.get(&item.device);
+        let zpool_name = zpool.get(&item.device);
+        let crypt_name = crypttab.get(&item.device);
 
         if item.structure == "remote-mount" {
             item.volume_kind = remote_volume_kind(&item.filesystem);
@@ -387,6 +394,17 @@ fn enrich_linux_disk_inventory(items: &mut [RawDiskInventory]) {
 
         if item.structure.is_empty() {
             item.structure = infer_linux_structure(&item.device, &sys_path);
+        }
+        if let Some((mounts, fstype, source)) = findmnt_info {
+            if item.mount_points.is_empty() {
+                item.mount_points = mounts.clone();
+            }
+            if item.filesystem.is_empty() {
+                item.filesystem = fstype.clone();
+            }
+            if item.reference.is_empty() {
+                item.reference = source.clone();
+            }
         }
         if item.transport.is_empty() {
             item.transport = read_string_file(&sys_path.join("device/transport"))
@@ -474,6 +492,37 @@ fn enrich_linux_disk_inventory(items: &mut [RawDiskInventory]) {
                 || item.volume_kind.is_empty()
             {
                 item.volume_kind = "btrfs-member".to_string();
+            }
+        }
+        if let Some(name) = crypt_name {
+            if item.volume_kind == "partition" || item.volume_kind == "block-device" {
+                item.volume_kind = "luks-member".to_string();
+            }
+            if item.label.is_empty() {
+                item.label = name.clone();
+            }
+        }
+        if let Some(pool) = zpool_name {
+            if item.volume_kind == "block-device" || item.volume_kind == "filesystem-volume" {
+                item.volume_kind = "zfs-member".to_string();
+            }
+            if item.label.is_empty() {
+                item.label = pool.clone();
+            }
+        }
+        if let Some(dataset) = zfs_mounts
+            .iter()
+            .find(|(mount, _)| item.mount_points.iter().any(|point| point == mount))
+            .map(|(_, dataset)| dataset)
+        {
+            item.filesystem = "zfs".to_string();
+            item.filesystem_family = "zfs".to_string();
+            item.volume_kind = "zfs-dataset".to_string();
+            if item.reference.is_empty() {
+                item.reference = dataset.clone();
+            }
+            if item.label.is_empty() {
+                item.label = dataset.clone();
             }
         }
         item.scheduler = read_string_file(&sys_path.join("queue/scheduler"))
@@ -780,6 +829,37 @@ fn read_lvm_lv_map() -> HashMap<String, (String, String, String)> {
     map
 }
 
+type FindmntInfo = (Vec<String>, String, String);
+
+fn read_findmnt_map() -> HashMap<String, FindmntInfo> {
+    let Some(output) = command_output("findmnt", &["-J", "-r", "-o", "SOURCE,TARGET,FSTYPE"])
+    else {
+        return HashMap::new();
+    };
+    let Ok(value) = serde_json::from_str::<Value>(&output) else {
+        return HashMap::new();
+    };
+
+    let mut map: HashMap<String, FindmntInfo> = HashMap::new();
+    for item in value
+        .get("filesystems")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let source = json_string(item, "source").unwrap_or_default();
+        let target = json_string(item, "target").unwrap_or_default();
+        let fstype = json_string(item, "fstype").unwrap_or_default();
+        let Some(dev) = source.strip_prefix("/dev/") else {
+            continue;
+        };
+        map.entry(dev.to_string())
+            .and_modify(|entry| entry.0.push(target.clone()))
+            .or_insert_with(|| (vec![target], fstype, source));
+    }
+    map
+}
+
 #[derive(Clone)]
 struct DmsetupInfo {
     name: String,
@@ -900,6 +980,73 @@ fn read_btrfs_map() -> HashMap<String, BtrfsInfo> {
     }
 
     map
+}
+
+fn read_zfs_mount_map() -> Vec<(String, String)> {
+    let Some(output) = command_output("zfs", &["list", "-H", "-o", "name,mountpoint"]) else {
+        return Vec::new();
+    };
+
+    output
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.split_whitespace();
+            let name = parts.next()?.to_string();
+            let mount = parts.next()?.to_string();
+            if matches!(mount.as_str(), "-" | "legacy" | "none") {
+                None
+            } else {
+                Some((mount, name))
+            }
+        })
+        .collect()
+}
+
+fn read_zpool_device_map() -> HashMap<String, String> {
+    let Some(output) = command_output("zpool", &["status", "-P"]) else {
+        return HashMap::new();
+    };
+
+    let mut current_pool = String::new();
+    let mut map = HashMap::new();
+    for line in output.lines() {
+        let trimmed = line.trim();
+        if let Some(name) = trimmed.strip_prefix("pool:") {
+            current_pool = name.trim().to_string();
+            continue;
+        }
+        if current_pool.is_empty() {
+            continue;
+        }
+        if let Some(dev) = trimmed.strip_prefix("/dev/") {
+            let device = dev.split_whitespace().next().unwrap_or_default();
+            if !device.is_empty() {
+                map.insert(device.to_string(), current_pool.clone());
+            }
+        }
+    }
+    map
+}
+
+fn read_crypttab_map() -> HashMap<String, String> {
+    let Ok(content) = fs::read_to_string("/etc/crypttab") else {
+        return HashMap::new();
+    };
+
+    content
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                return None;
+            }
+            let mut parts = trimmed.split_whitespace();
+            let name = parts.next()?.to_string();
+            let source = parts.next()?;
+            let device = source.strip_prefix("/dev/")?.to_string();
+            Some((device, name))
+        })
+        .collect()
 }
 
 fn is_remote_mount(source: &str, filesystem: &str) -> bool {

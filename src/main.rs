@@ -4,6 +4,7 @@ mod collectors;
 mod config;
 mod engine;
 mod exporters;
+mod inventory;
 mod pipeline;
 mod platform;
 mod recording;
@@ -63,6 +64,7 @@ async fn main() -> Result<()> {
         Commands::Tui => run_tui(config).await,
         Commands::Snapshot { format } => run_snapshot(&config, &format).await,
         Commands::Server { port } => run_server(config, port).await,
+        Commands::Inventory { format } => run_inventory(&config, &format).await,
         Commands::Top { sort, limit } => run_top(config, &sort, limit).await,
         Commands::Record {
             interval,
@@ -202,6 +204,27 @@ async fn run_server(config: Config, port: u16) -> Result<()> {
     Ok(())
 }
 
+async fn run_inventory(config: &Config, format: &str) -> Result<()> {
+    let (scheduler, mut rx) = Scheduler::new(build_registry(config), build_pipeline(config));
+    let token = CancellationToken::new();
+
+    let token_clone = token.clone();
+    tokio::spawn(async move {
+        scheduler.run(token_clone).await;
+    });
+
+    if let Ok(tick) = rx.recv().await {
+        let inventory = inventory::build_inventory(&tick.snapshot);
+        match format {
+            "json" => println!("{}", serde_json::to_string_pretty(&inventory)?),
+            _ => print_inventory_table(&inventory),
+        }
+    }
+
+    token.cancel();
+    Ok(())
+}
+
 // ─── Mode Top ────────────────────────────────────────────────────────────────
 
 async fn run_top(config: Config, sort: &str, limit: usize) -> Result<()> {
@@ -251,6 +274,77 @@ async fn run_top(config: Config, sort: &str, limit: usize) -> Result<()> {
 
     token.cancel();
     Ok(())
+}
+
+fn print_inventory_table(inventory: &inventory::InventoryResponse) {
+    if let Some(host) = &inventory.host {
+        println!(
+            "HOST  {}  {} {}  {}",
+            host.hostname, host.os_name, host.os_version, host.architecture
+        );
+    }
+
+    println!();
+    println!("DISK GROUPS");
+    println!(
+        "{:<18} {:<10} {:<10} {:<8} {:<8} MEMBERS",
+        "ROOT", "PROTO", "MEDIA", "REMOTE", "FS"
+    );
+    println!("{}", "─".repeat(86));
+    for group in &inventory.groups {
+        println!(
+            "{:<18} {:<10} {:<10} {:<8} {:<8} {}",
+            truncate_text(&group.root_device, 18),
+            truncate_text(&group.protocol, 10),
+            truncate_text(&group.media, 10),
+            if group.remote { "yes" } else { "no" },
+            truncate_text(&group.filesystems.join(","), 8),
+            truncate_text(&group.members.join(","), 28),
+        );
+    }
+
+    println!();
+    println!("DISKS");
+    println!(
+        "{:<16} {:<12} {:<10} {:<8} {:<10} {:<10} {:>6}",
+        "DEVICE", "KIND", "FS", "PROTO", "MOUNT", "PARENT", "STACK"
+    );
+    println!("{}", "─".repeat(92));
+    for disk in &inventory.disks {
+        println!(
+            "{:<16} {:<12} {:<10} {:<8} {:<10} {:<10} {:>6}",
+            truncate_text(&disk.device, 16),
+            truncate_text(&disk.volume_kind, 12),
+            truncate_text(&disk.filesystem, 10),
+            truncate_text(&disk.protocol, 8),
+            truncate_text(&disk.mount_point, 10),
+            truncate_text(&disk.parent, 10),
+            disk.logical_stack.len(),
+        );
+    }
+
+    println!();
+    println!("NETWORKS");
+    println!(
+        "{:<16} {:<16} {:<12} {:<10} {:>8} {:>8}",
+        "IFACE", "TOPOLOGY", "FAMILY", "MEDIUM", "CONN", "ESTAB"
+    );
+    println!("{}", "─".repeat(82));
+    for net in &inventory.networks {
+        println!(
+            "{:<16} {:<16} {:<12} {:<10} {:>8} {:>8}",
+            truncate_text(&net.interface, 16),
+            truncate_text(&net.topology, 16),
+            truncate_text(&net.family, 12),
+            truncate_text(&net.medium, 10),
+            net.connections_total,
+            net.connections_established,
+        );
+    }
+}
+
+fn truncate_text(value: &str, max_chars: usize) -> String {
+    value.chars().take(max_chars).collect()
 }
 
 // ─── Mode Record ─────────────────────────────────────────────────────────────

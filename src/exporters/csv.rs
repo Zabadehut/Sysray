@@ -298,6 +298,30 @@ impl Exporter for CsvExporter {
                 metric_label(&net.medium_hint)
             ));
             out.push_str(&format!(
+                "{},net.{}.flag.loopback,{}\n",
+                snapshot.timestamp,
+                iface,
+                u8::from(net.topology_hint == "loopback")
+            ));
+            out.push_str(&format!(
+                "{},net.{}.flag.virtual,{}\n",
+                snapshot.timestamp,
+                iface,
+                u8::from(net.medium_hint == "virtual" || net.medium_hint == "software")
+            ));
+            out.push_str(&format!(
+                "{},net.{}.flag.wireless,{}\n",
+                snapshot.timestamp,
+                iface,
+                u8::from(net.family_hint == "wireless")
+            ));
+            out.push_str(&format!(
+                "{},net.{}.flag.overlay,{}\n",
+                snapshot.timestamp,
+                iface,
+                u8::from(net.medium_hint == "overlay")
+            ));
+            out.push_str(&format!(
                 "{},net.{}.rx_bytes_sec,{}\n",
                 snapshot.timestamp, iface, net.rx_bytes_sec
             ));

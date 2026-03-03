@@ -102,6 +102,13 @@ pub enum Commands {
         port: u16,
     },
 
+    /// Print the current host inventory with disk groups and network interfaces
+    Inventory {
+        /// Output format: table or json
+        #[arg(short, long, default_value = "table")]
+        format: String,
+    },
+
     /// Show top processes in a one-shot view
     Top {
         /// Sort by cpu, mem, pid, or name
