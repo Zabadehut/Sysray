@@ -555,6 +555,7 @@ const CATALOG: &[ReferenceEntry] = &[
         audience: Audience::Expert,
         aliases: &[
             "pressure paths",
+            "pressure+",
             "host mem pressure",
             "psi mem avg10",
             "cpu throttled",
@@ -582,6 +583,7 @@ const CATALOG: &[ReferenceEntry] = &[
         audience: Audience::Expert,
         aliases: &[
             "pressure lenses",
+            "pressure+",
             "reclaim score",
             "swap push",
             "host cgroup gap",
@@ -609,6 +611,7 @@ const CATALOG: &[ReferenceEntry] = &[
         audience: Audience::Expert,
         aliases: &[
             "socket states",
+            "network+",
             "tcp states",
             "syn sent recv",
             "close wait",
@@ -636,6 +639,7 @@ const CATALOG: &[ReferenceEntry] = &[
         audience: Audience::Expert,
         aliases: &[
             "session lenses",
+            "network+",
             "handshake pressure",
             "closing backlog",
             "loss path score",
@@ -663,6 +667,7 @@ const CATALOG: &[ReferenceEntry] = &[
         audience: Audience::Expert,
         aliases: &[
             "jvm hotspots",
+            "jvm+",
             "thread runtime",
             "thread analyzer",
             "runtime focus",
@@ -690,6 +695,7 @@ const CATALOG: &[ReferenceEntry] = &[
         audience: Audience::Expert,
         aliases: &[
             "jvm profiles",
+            "jvm+",
             "runtime profiles",
             "heap hint",
             "dominant pressure",
@@ -717,6 +723,7 @@ const CATALOG: &[ReferenceEntry] = &[
         audience: Audience::Expert,
         aliases: &[
             "disk waiters",
+            "disk+",
             "waiters io",
             "processus d",
             "io waiters",
@@ -744,6 +751,7 @@ const CATALOG: &[ReferenceEntry] = &[
         audience: Audience::Expert,
         aliases: &[
             "disk lenses",
+            "disk+",
             "busy path",
             "latency path",
             "waiter pressure",
@@ -985,6 +993,7 @@ const CATALOG: &[ReferenceEntry] = &[
         audience: Audience::Beginner,
         aliases: &[
             "disk structure",
+            "inventory+",
             "structure",
             "namespace",
             "mapper",
@@ -1065,6 +1074,7 @@ const CATALOG: &[ReferenceEntry] = &[
         audience: Audience::Beginner,
         aliases: &[
             "filesystem",
+            "inventory+",
             "fs",
             "btrfs",
             "xfs",
@@ -1097,6 +1107,7 @@ const CATALOG: &[ReferenceEntry] = &[
         audience: Audience::Expert,
         aliases: &[
             "parent disk",
+            "inventory+",
             "parent",
             "child disk",
             "children",
@@ -1213,6 +1224,7 @@ const CATALOG: &[ReferenceEntry] = &[
         audience: Audience::Expert,
         aliases: &[
             "stack",
+            "inventory+",
             "logical stack",
             "disk stack",
             "inventory",
@@ -1242,6 +1254,7 @@ const CATALOG: &[ReferenceEntry] = &[
         ui_visibility: UiVisibility::IndexedOnly,
         audience: Audience::Expert,
         aliases: &[
+            "inventory+",
             "uuid",
             "partuuid",
             "serial",
@@ -1706,23 +1719,54 @@ const CATALOG: &[ReferenceEntry] = &[
         audience: Audience::Beginner,
         aliases: &[
             "tui mode",
+            "tui dashboard",
             "json export",
             "csv export",
             "prometheus text export",
+            "snapshot command",
+            "inventory command",
+            "api server",
+            "server mode",
             "record mode",
             "replay mode",
+            "top command",
+            "watch command",
+            "explain command",
             "service install scaffolding",
+            "/snapshot",
+            "/inventory",
+            "/reference",
+            "/health",
+            "/metrics",
         ],
-        tags: &["runtime", "tui", "json", "csv", "prometheus", "record", "replay", "service"],
+        tags: &[
+            "runtime",
+            "tui",
+            "json",
+            "csv",
+            "prometheus",
+            "snapshot",
+            "inventory",
+            "server",
+            "record",
+            "replay",
+            "top",
+            "watch",
+            "explain",
+            "service",
+            "api",
+            "health",
+            "metrics",
+        ],
         fr: ReferenceText {
             title: "Capacites runtime actuelles",
-            summary: "Regroupe les modes et exports deja disponibles dans Pulsar.",
+            summary: "Regroupe les modes TUI, CLI, API et exports deja disponibles dans Pulsar.",
             beginner: "Ce bloc couvre les fonctions que l'on peut deja utiliser au quotidien.",
             expert: "Le niveau de profondeur varie encore selon OS et selon la surface runtime concernee.",
         },
         en: ReferenceText {
             title: "Current runtime capabilities",
-            summary: "Groups the modes and exports already available in Pulsar.",
+            summary: "Groups the TUI, CLI, API and export surfaces already available in Pulsar.",
             beginner: "This block covers the features already usable day to day.",
             expert: "Depth still varies by OS and by the runtime surface involved.",
         },
@@ -1893,6 +1937,80 @@ mod tests {
         );
     }
 
+    #[test]
+    fn runtime_surfaces_and_specialist_views_are_covered_by_reference_catalog() {
+        for locale in [Locale::Fr, Locale::En] {
+            for (term, required_ids) in [
+                (
+                    "pressure+",
+                    vec![
+                        "expert.pressure_view",
+                        "expert.pressure_paths",
+                        "expert.pressure_lenses",
+                    ],
+                ),
+                (
+                    "network+",
+                    vec![
+                        "expert.network_view",
+                        "expert.socket_states",
+                        "expert.network_lenses",
+                    ],
+                ),
+                (
+                    "jvm+",
+                    vec![
+                        "expert.jvm_view",
+                        "expert.jvm_hotspots",
+                        "expert.jvm_profiles",
+                    ],
+                ),
+                (
+                    "disk+",
+                    vec![
+                        "expert.disk_pressure_view",
+                        "expert.disk_waiters",
+                        "expert.disk_lenses",
+                    ],
+                ),
+                (
+                    "inventory",
+                    vec![
+                        "disk.structure",
+                        "disk.filesystem",
+                        "disk.parent",
+                        "disk.stack",
+                        "disk.reference",
+                    ],
+                ),
+            ] {
+                assert_contains_ids(term, locale, &required_ids, "specialist view");
+            }
+
+            for term in [
+                "snapshot",
+                "inventory",
+                "server",
+                "record",
+                "replay",
+                "top",
+                "watch",
+                "explain",
+                "service",
+                "/inventory",
+                "/reference",
+                "/health",
+                "/metrics",
+            ] {
+                assert!(
+                    !search(term, locale).is_empty(),
+                    "missing runtime search coverage for `{term}` in {}",
+                    locale.code()
+                );
+            }
+        }
+    }
+
     fn extract_checklist_label(line: &str) -> Option<&str> {
         if !line.starts_with("| [") {
             return None;
@@ -1911,5 +2029,27 @@ mod tests {
         } else {
             Some(label)
         }
+    }
+
+    fn assert_contains_ids(term: &str, locale: Locale, expected_ids: &[&str], context: &str) {
+        let hits = search(term, locale);
+        assert!(
+            !hits.is_empty(),
+            "missing {context} search coverage for `{term}` in {}",
+            locale.code()
+        );
+
+        let missing: Vec<&str> = expected_ids
+            .iter()
+            .copied()
+            .filter(|expected| !hits.iter().any(|hit| hit.entry.id == *expected))
+            .collect();
+
+        assert!(
+            missing.is_empty(),
+            "missing {context} reference ids for `{term}` in {}: {:?}",
+            locale.code(),
+            missing
+        );
     }
 }

@@ -192,7 +192,7 @@ impl Dashboard {
     pub fn render(&self, frame: &mut Frame, snapshot: &Snapshot, reference: &ReferenceUiState) {
         let area = frame.area();
         let header_height = self.header_height(area.width);
-        let footer_height = self.footer_height(area.width);
+        let footer_height = self.footer_height(snapshot, reference, area.width);
 
         // Layout principal : header + corps + footer
         let main = Layout::default()
@@ -579,14 +579,15 @@ impl Dashboard {
         frame.render_widget(footer, area);
     }
 
-    fn footer_height(&self, width: u16) -> u16 {
-        if width >= 180 {
-            3
-        } else if width >= 120 {
-            4
-        } else {
-            5
-        }
+    fn footer_height(&self, snapshot: &Snapshot, reference: &ReferenceUiState, width: u16) -> u16 {
+        self.footer_lines(
+            snapshot.computed.alerts.len(),
+            &self.visibility,
+            snapshot,
+            reference,
+            width,
+        )
+        .len() as u16
     }
 
     fn header_height(&self, width: u16) -> u16 {
@@ -765,118 +766,15 @@ impl Dashboard {
             }),
         ]);
 
-        let modes = Line::from(vec![
-            hotkey_span("1", self.theme.highlight_style()),
-            Span::raw(format!(":{}  ", OperatorMode::Overview.label(self.locale))),
-            hotkey_span("2", self.theme.highlight_style()),
-            Span::raw(format!(":{}  ", OperatorMode::Storage.label(self.locale))),
-            hotkey_span("3", self.theme.highlight_style()),
-            Span::raw(format!(":{}  ", OperatorMode::Network.label(self.locale))),
-            hotkey_span("4", self.theme.highlight_style()),
-            Span::raw(format!(":{}  ", OperatorMode::Process.label(self.locale))),
-            hotkey_span("5", self.theme.highlight_style()),
-            Span::raw(format!(":{}  ", OperatorMode::Pressure.label(self.locale))),
-            hotkey_span("6", self.theme.highlight_style()),
-            Span::raw(format!(":{}  ", OperatorMode::Full.label(self.locale))),
-        ]);
+        let context = if reference.input_active || reference.visible {
+            self.reference_footer_line(reference)
+        } else if self.specialist_view != SpecialistView::None {
+            self.expert_footer_line()
+        } else {
+            self.mode_footer_line()
+        };
 
-        let expert = Line::from(vec![
-            hotkey_span("7", self.theme.highlight_style()),
-            Span::raw(format!(
-                ":{}  ",
-                SpecialistView::Pressure.label(self.locale)
-            )),
-            hotkey_span("8", self.theme.highlight_style()),
-            Span::raw(format!(":{}  ", SpecialistView::Network.label(self.locale))),
-            hotkey_span("9", self.theme.highlight_style()),
-            Span::raw(format!(":{}  ", SpecialistView::Jvm.label(self.locale))),
-            hotkey_span("0", self.theme.highlight_style()),
-            Span::raw(format!(
-                ":{}  ",
-                SpecialistView::DiskPressure.label(self.locale)
-            )),
-            hotkey_span("g", self.theme.highlight_style()),
-            Span::raw(format!(
-                ":{}  ",
-                SpecialistView::DiskInventory.label(self.locale)
-            )),
-            hotkey_span("-", self.theme.highlight_style()),
-            Span::raw(format!(
-                ":{}  ",
-                text(self.locale, "retour normal", "clear expert")
-            )),
-            Span::styled(
-                format!(
-                    "{}:{}",
-                    text(self.locale, "expert", "expert"),
-                    self.specialist_view.label(self.locale)
-                ),
-                if self.specialist_view == SpecialistView::None {
-                    self.theme.muted_style()
-                } else {
-                    self.theme.highlight_style()
-                },
-            ),
-        ]);
-
-        let panels = Line::from(vec![
-            panel_toggle_span(
-                "s",
-                text(self.locale, "sys", "sys"),
-                visibility.system,
-                &self.theme,
-            ),
-            Span::raw("  "),
-            panel_toggle_span(
-                "c",
-                text(self.locale, "cpu", "cpu"),
-                visibility.cpu,
-                &self.theme,
-            ),
-            Span::raw("  "),
-            panel_toggle_span(
-                "m",
-                text(self.locale, "mem", "mem"),
-                visibility.memory,
-                &self.theme,
-            ),
-            Span::raw("  "),
-            panel_toggle_span(
-                "l",
-                text(self.locale, "linux", "linux"),
-                visibility.linux,
-                &self.theme,
-            ),
-            Span::raw("  "),
-            panel_toggle_span(
-                "d",
-                text(self.locale, "disk", "disk"),
-                visibility.disk,
-                &self.theme,
-            ),
-            Span::raw("  "),
-            panel_toggle_span(
-                "n",
-                text(self.locale, "net", "net"),
-                visibility.network,
-                &self.theme,
-            ),
-            Span::raw("  "),
-            panel_toggle_span(
-                "a",
-                text(self.locale, "alertes", "alerts"),
-                visibility.alerts,
-                &self.theme,
-            ),
-            Span::raw("  "),
-            panel_toggle_span(
-                "p",
-                text(self.locale, "proc", "proc"),
-                visibility.process,
-                &self.theme,
-            ),
-        ]);
-
+        let panels = self.contextual_panel_line(visibility);
         let status = Line::from(vec![
             Span::styled(
                 format!(
@@ -927,37 +825,17 @@ impl Dashboard {
             },
         ]);
 
-        if width >= 180 {
-            vec![
-                nav,
-                expert,
-                Line::from(
-                    vec![modes.spans.into_iter().collect::<Vec<_>>()]
-                        .into_iter()
-                        .flatten()
-                        .chain(vec![Span::raw("  ")])
-                        .chain(panels.spans)
-                        .chain(vec![Span::raw("  ")])
-                        .chain(status.spans)
-                        .collect::<Vec<_>>(),
-                ),
-            ]
-        } else if width >= 120 {
-            vec![
-                nav,
-                expert,
-                modes,
-                Line::from(
-                    panels
-                        .spans
-                        .into_iter()
-                        .chain(vec![Span::raw("  ")])
-                        .chain(status.spans)
-                        .collect::<Vec<_>>(),
-                ),
-            ]
+        let status_compact = width < 110 && self.specialist_view == SpecialistView::None;
+        let status = if status_compact {
+            self.compact_status_line(alerts, visibility, reference)
         } else {
-            vec![nav, expert, modes, panels, status]
+            status
+        };
+
+        if width >= 180 {
+            vec![nav, context, merge_line(panels, status)]
+        } else {
+            vec![nav, context, panels, status]
         }
     }
 
@@ -971,6 +849,240 @@ impl Dashboard {
                 self.specialist_view.label(self.locale)
             )
         }
+    }
+
+    fn mode_footer_line(&self) -> Line<'static> {
+        Line::from(vec![
+            hotkey_span("1", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", OperatorMode::Overview.label(self.locale))),
+            hotkey_span("2", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", OperatorMode::Storage.label(self.locale))),
+            hotkey_span("3", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", OperatorMode::Network.label(self.locale))),
+            hotkey_span("4", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", OperatorMode::Process.label(self.locale))),
+            hotkey_span("5", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", OperatorMode::Pressure.label(self.locale))),
+            hotkey_span("6", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", OperatorMode::Full.label(self.locale))),
+            Span::styled(
+                format!(
+                    "{}:{}",
+                    text(self.locale, "mode", "mode"),
+                    self.operator_mode.label(self.locale)
+                ),
+                self.theme.highlight_style(),
+            ),
+        ])
+    }
+
+    fn expert_footer_line(&self) -> Line<'static> {
+        Line::from(vec![
+            hotkey_span("7", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}  ",
+                SpecialistView::Pressure.label(self.locale)
+            )),
+            hotkey_span("8", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", SpecialistView::Network.label(self.locale))),
+            hotkey_span("9", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", SpecialistView::Jvm.label(self.locale))),
+            hotkey_span("0", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}  ",
+                SpecialistView::DiskPressure.label(self.locale)
+            )),
+            hotkey_span("g", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}  ",
+                SpecialistView::DiskInventory.label(self.locale)
+            )),
+            hotkey_span("-", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}  ",
+                text(self.locale, "retour normal", "clear expert")
+            )),
+            Span::styled(
+                format!(
+                    "{}:{}",
+                    text(self.locale, "expert", "expert"),
+                    self.specialist_view.label(self.locale)
+                ),
+                self.theme.highlight_style(),
+            ),
+        ])
+    }
+
+    fn reference_footer_line(&self, reference: &ReferenceUiState) -> Line<'static> {
+        Line::from(vec![
+            hotkey_span("/", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", text(self.locale, "search", "search"))),
+            hotkey_span("?", self.theme.highlight_style()),
+            Span::raw(format!(":{}  ", text(self.locale, "index", "index"))),
+            hotkey_span("up/down", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}  ",
+                text(self.locale, "selection", "selection")
+            )),
+            hotkey_span("enter", self.theme.highlight_style()),
+            Span::raw(format!(
+                ":{}  ",
+                text(self.locale, "ouvrir index", "keep index")
+            )),
+            hotkey_span("esc", self.theme.highlight_style()),
+            Span::raw(if reference.input_active {
+                text(self.locale, ":fermer recherche", ":close search")
+            } else {
+                text(self.locale, ":fermer index", ":close index")
+            }),
+        ])
+    }
+
+    fn contextual_panel_line(&self, visibility: &PanelVisibility) -> Line<'static> {
+        let panels = match self.specialist_view {
+            SpecialistView::Pressure => &[
+                Panel::Cpu,
+                Panel::Memory,
+                Panel::Linux,
+                Panel::Disk,
+                Panel::Alerts,
+            ][..],
+            SpecialistView::Network => &[
+                Panel::System,
+                Panel::Cpu,
+                Panel::Linux,
+                Panel::Network,
+                Panel::Alerts,
+            ][..],
+            SpecialistView::Jvm => &[Panel::Cpu, Panel::Memory, Panel::Alerts, Panel::Process][..],
+            SpecialistView::DiskPressure => &[
+                Panel::Memory,
+                Panel::Linux,
+                Panel::Disk,
+                Panel::Alerts,
+                Panel::Process,
+            ][..],
+            SpecialistView::DiskInventory => {
+                &[Panel::System, Panel::Linux, Panel::Disk, Panel::Alerts][..]
+            }
+            SpecialistView::None => match self.operator_mode {
+                OperatorMode::Overview => &[
+                    Panel::System,
+                    Panel::Cpu,
+                    Panel::Memory,
+                    Panel::Alerts,
+                    Panel::Process,
+                ][..],
+                OperatorMode::Storage => &[
+                    Panel::Memory,
+                    Panel::Linux,
+                    Panel::Disk,
+                    Panel::Alerts,
+                    Panel::Process,
+                ][..],
+                OperatorMode::Network => &[
+                    Panel::System,
+                    Panel::Cpu,
+                    Panel::Linux,
+                    Panel::Network,
+                    Panel::Alerts,
+                ][..],
+                OperatorMode::Process => &[
+                    Panel::System,
+                    Panel::Cpu,
+                    Panel::Memory,
+                    Panel::Alerts,
+                    Panel::Process,
+                ][..],
+                OperatorMode::Pressure => &[
+                    Panel::Cpu,
+                    Panel::Memory,
+                    Panel::Linux,
+                    Panel::Disk,
+                    Panel::Alerts,
+                ][..],
+                OperatorMode::Full => &[
+                    Panel::System,
+                    Panel::Cpu,
+                    Panel::Memory,
+                    Panel::Linux,
+                    Panel::Disk,
+                    Panel::Network,
+                    Panel::Alerts,
+                    Panel::Process,
+                ][..],
+            },
+        };
+
+        let mut spans = Vec::new();
+        for (index, panel) in panels.iter().copied().enumerate() {
+            if index > 0 {
+                spans.push(Span::raw("  "));
+            }
+            let (key, label, visible) = match panel {
+                Panel::System => ("s", text(self.locale, "sys", "sys"), visibility.system),
+                Panel::Cpu => ("c", text(self.locale, "cpu", "cpu"), visibility.cpu),
+                Panel::Memory => ("m", text(self.locale, "mem", "mem"), visibility.memory),
+                Panel::Linux => ("l", text(self.locale, "linux", "linux"), visibility.linux),
+                Panel::Disk => ("d", text(self.locale, "disk", "disk"), visibility.disk),
+                Panel::Network => ("n", text(self.locale, "net", "net"), visibility.network),
+                Panel::Alerts => (
+                    "a",
+                    text(self.locale, "alertes", "alerts"),
+                    visibility.alerts,
+                ),
+                Panel::Process => ("p", text(self.locale, "proc", "proc"), visibility.process),
+            };
+            spans.push(panel_toggle_span(key, label, visible, &self.theme));
+        }
+
+        Line::from(spans)
+    }
+
+    fn compact_status_line(
+        &self,
+        alerts: usize,
+        visibility: &PanelVisibility,
+        reference: &ReferenceUiState,
+    ) -> Line<'static> {
+        Line::from(vec![
+            Span::styled(
+                format!(
+                    "{}:{}/8  ",
+                    text(self.locale, "visibles", "visible"),
+                    visibility.visible_count()
+                ),
+                self.theme.highlight_style(),
+            ),
+            Span::styled(
+                format!("{}:{}  ", text(self.locale, "alertes", "alerts"), alerts),
+                if alerts > 0 {
+                    self.theme.alert_style()
+                } else {
+                    self.theme.highlight_style()
+                },
+            ),
+            Span::styled(
+                if reference.query.is_empty() {
+                    format!(
+                        "{}:{}",
+                        text(self.locale, "reference", "reference"),
+                        text(self.locale, "tout", "all")
+                    )
+                } else {
+                    format!(
+                        "{}:{}",
+                        text(self.locale, "reference", "reference"),
+                        reference.query
+                    )
+                },
+                if reference.query.is_empty() {
+                    self.theme.muted_style()
+                } else {
+                    self.theme.highlight_style()
+                },
+            ),
+        ])
     }
 }
 
@@ -1011,6 +1123,16 @@ fn panel_toggle_span<'a>(key: &'a str, label: &'a str, visible: bool, theme: &Th
 
 fn hotkey_span(key: &str, style: ratatui::style::Style) -> Span<'static> {
     Span::styled(format!(" {key}"), style)
+}
+
+fn merge_line(left: Line<'static>, right: Line<'static>) -> Line<'static> {
+    Line::from(
+        left.spans
+            .into_iter()
+            .chain(vec![Span::raw("  ")])
+            .chain(right.spans)
+            .collect::<Vec<_>>(),
+    )
 }
 
 fn format_uptime(secs: u64) -> String {

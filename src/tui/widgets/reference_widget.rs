@@ -1,4 +1,4 @@
-use crate::reference::{Locale, SearchHit};
+use crate::reference::{Locale, MetricStatus, SearchHit, UiVisibility};
 use crate::tui::{i18n::text, theme::Theme};
 use ratatui::{
     layout::Rect,
@@ -115,7 +115,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: ReferenceWidgetState<'_>, th
             Span::styled(hit.entry.category, theme.highlight_style()),
             Span::raw(" "),
             Span::styled(
-                format!("{:?}/{:?}", hit.entry.status, hit.entry.ui_visibility),
+                format!(
+                    "{}/{}",
+                    localized_status(state.locale, hit.entry.status),
+                    localized_visibility(state.locale, hit.entry.ui_visibility)
+                ),
                 theme.muted_style(),
             ),
         ]));
@@ -128,4 +132,19 @@ pub fn render(frame: &mut Frame, area: Rect, state: ReferenceWidgetState<'_>, th
             .wrap(Wrap { trim: true }),
         inner,
     );
+}
+
+fn localized_status(locale: Locale, status: MetricStatus) -> &'static str {
+    match status {
+        MetricStatus::Implemented => text(locale, "actif", "implemented"),
+        MetricStatus::Partial => text(locale, "partiel", "partial"),
+        MetricStatus::Planned => text(locale, "planifie", "planned"),
+    }
+}
+
+fn localized_visibility(locale: Locale, visibility: UiVisibility) -> &'static str {
+    match visibility {
+        UiVisibility::Visible => text(locale, "visible", "visible"),
+        UiVisibility::IndexedOnly => text(locale, "indexe", "indexed"),
+    }
 }
