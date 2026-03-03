@@ -93,24 +93,26 @@ pub fn read_disk_inventory() -> Result<Vec<RawDiskInventory>> {
         } else {
             "whole-disk".to_string()
         };
+        let volume_kind = if filesystem.is_empty() {
+            "block-device".to_string()
+        } else if structure == "apfs-container" {
+            "apfs-container".to_string()
+        } else {
+            "filesystem-volume".to_string()
+        };
+        let filesystem_family = if filesystem.eq_ignore_ascii_case("apfs") {
+            "apple".to_string()
+        } else {
+            filesystem.to_ascii_lowercase()
+        };
 
         inventory.push(RawDiskInventory {
             device: identifier,
             parent,
             structure,
-            volume_kind: if filesystem.is_empty() {
-                "block-device".to_string()
-            } else if structure == "apfs-container" {
-                "apfs-container".to_string()
-            } else {
-                "filesystem-volume".to_string()
-            },
+            volume_kind,
             filesystem,
-            filesystem_family: if filesystem.eq_ignore_ascii_case("apfs") {
-                "apple".to_string()
-            } else {
-                filesystem.to_ascii_lowercase()
-            },
+            filesystem_family,
             label,
             uuid,
             part_uuid,

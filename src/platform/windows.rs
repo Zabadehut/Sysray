@@ -198,6 +198,11 @@ fn read_remote_mount_inventory() -> Vec<RawDiskInventory> {
             } else {
                 remote.clone()
             };
+            let logical_stack_entry = if remote.is_empty() {
+                device.clone()
+            } else {
+                remote.clone()
+            };
             Some(RawDiskInventory {
                 device: device.clone(),
                 parent: None,
@@ -217,11 +222,7 @@ fn read_remote_mount_inventory() -> Vec<RawDiskInventory> {
                 removable: None,
                 read_only: None,
                 mount_points: vec![device.clone()],
-                logical_stack: vec![if remote.is_empty() {
-                    device.clone()
-                } else {
-                    remote.clone()
-                }],
+                logical_stack: vec![logical_stack_entry],
                 slaves: Vec::new(),
                 holders: Vec::new(),
                 children: Vec::new(),
