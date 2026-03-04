@@ -233,6 +233,7 @@ Important for a blank machine:
 - it requires a Rust toolchain and usually leaves the binary under `~/.cargo/bin`
 - after a release-binary install, prefer `sysray install` plus `sysray service install`
 - on Linux, package formats such as `.rpm` or a standalone release tarball are a better first-run story than requiring Rust
+- real `systemd --user` runtime validation should be done on a dedicated Linux environment with a proper user session, not faked inside a generic hosted CI runner
 
 ## Configuration
 

@@ -65,7 +65,17 @@ Recommended workflow coverage:
 - native validation of `sysray schedule install|status|uninstall`
 - Ubuntu-only linting and cross-target `cargo check`
 
-Linux first-class validation should also include one runner that brings up a real `systemd --user` manager and validates both `service` and `schedule` against it.
+Use two layers for Linux automation validation:
+
+- `Retroactive` contract validation on GitHub-hosted runners:
+- generate the user-service and timer artifacts
+- verify runner scripts, config files, unit/plist/task contents, install, status, and uninstall behavior
+- keep these checks stable across generic hosted runners
+
+- `Proactive` runtime validation on a dedicated Linux runner:
+- use a real login/session environment with working `systemd --user`
+- validate actual `systemctl --user` behavior for both `service` and `schedule`
+- run this on self-hosted infrastructure or another environment you control, not on a generic GitHub-hosted Ubuntu runner
 
 ### Local Cross-Build Attempt
 

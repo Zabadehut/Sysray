@@ -1,0 +1,30 @@
+name: Sysray Runtime Validation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux-systemd-user-validation:
+    name: Linux systemd --user Validation
+    runs-on: [self-hosted, linux, systemd]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --locked
+
+      - name: Validate Linux service and schedule with live systemd --user
+        run: bash ./scripts/validate-linux-systemd-user-flows.sh
