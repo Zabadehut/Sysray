@@ -592,7 +592,12 @@ fn read_native_cpu_stat() -> Option<RawCpuStat> {
     let mut kernel = FILETIME::default();
     let mut user = FILETIME::default();
     unsafe {
-        GetSystemTimes(Some(&mut idle), Some(&mut kernel), Some(&mut user)).ok()?;
+        GetSystemTimes(
+            Some(&mut idle as *mut FILETIME),
+            Some(&mut kernel as *mut FILETIME),
+            Some(&mut user as *mut FILETIME),
+        )
+        .ok()?;
     }
 
     let idle_ticks = filetime_to_u64(idle);
@@ -737,7 +742,7 @@ fn read_tcp_rows_v6() -> Option<Vec<u32>> {
     Some(unsafe {
         slice::from_raw_parts((*table).table.as_ptr(), (*table).dwNumEntries as usize)
             .iter()
-            .map(|row: &MIB_TCP6ROW2| row.State)
+            .map(|row: &MIB_TCP6ROW2| row.State.0 as u32)
             .collect()
     })
 }
