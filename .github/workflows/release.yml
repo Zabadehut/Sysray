@@ -41,15 +41,78 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Install RPM tooling
+      - name: Install RPM tooling and musl
         if: ${{ runner.os == 'Linux' }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y rpm
+          sudo apt-get install -y rpm musl-tools
 
-      - name: Build release artifacts
+      - name: Install musl Rust target
+        if: ${{ runner.os == 'Linux' }}
+        run: rustup target add x86_64-unknown-linux-musl
+
+      - name: Build release artifacts (non-Linux)
+        if: ${{ runner.os != 'Linux' }}
         shell: bash
         run: ./scripts/build-complete.sh
+
+      - name: Build static RPM with musl
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          VERSION="$(sed -n 's/^version *= *"\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
+          mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          
+          # Build the static binary
+          cargo build --release --target x86_64-unknown-linux-musl
+          
+          # Verify it's truly static
+          echo "=== Verifying static build ==="
+          file target/x86_64-unknown-linux-musl/release/sysray
+          (ldd target/x86_64-unknown-linux-musl/release/sysray && echo "❌ NOT STATIC" && exit 1) || echo "✓ Binary is statically linked"
+          
+          # Prepare sources
+          cp target/x86_64-unknown-linux-musl/release/sysray rpmbuild/SOURCES/
+          
+          # Create RPM spec file
+          cat > rpmbuild/SPECS/sysray.spec <<'EOF'
+          Name: sysray
+          Version: ${VERSION}
+          Release: 1
+          Summary: Modern cross-platform system observability engine
+          License: Apache-2.0
+          BuildArch: x86_64
+          Provides: sysray
+
+          %description
+          Sysray static binary - 100%% statically linked with musl C library
+          No GLIBC dependencies - portable across all Linux distributions.
+
+          %prep
+
+          %build
+
+          %install
+          mkdir -p %{buildroot}/usr/local/bin
+          cp %{_sourcedir}/sysray %{buildroot}/usr/local/bin/sysray
+          chmod 755 %{buildroot}/usr/local/bin/sysray
+
+          %files
+          %attr(0755, root, root) /usr/local/bin/sysray
+
+          %changelog
+          * Tue Mar 04 2026 Sysray Team <zaba88@hotmail.fr> - ${VERSION}-1
+          - Static musl build for maximum portability
+          EOF
+          
+          # Replace VERSION in spec file
+          sed -i "s|\${VERSION}|${VERSION}|g" rpmbuild/SPECS/sysray.spec
+
+          # Build RPM
+          rpmbuild --define "_topdir $(pwd)/rpmbuild" -bb rpmbuild/SPECS/sysray.spec
+          
+          # Copy to dist
+          mkdir -p dist
+          cp rpmbuild/RPMS/x86_64/*.rpm dist/
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
