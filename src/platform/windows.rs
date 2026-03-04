@@ -11,12 +11,11 @@ use std::process::Command;
 use std::sync::OnceLock;
 use windows::Win32::Foundation::{CloseHandle, FILETIME, HANDLE};
 use windows::Win32::System::SystemInformation::{
-    GetNativeSystemInfo, GetSystemTimes, GetTickCount64, GlobalMemoryStatusEx, MEMORYSTATUSEX,
-    SYSTEM_INFO,
+    GetNativeSystemInfo, GetTickCount64, GlobalMemoryStatusEx, MEMORYSTATUSEX, SYSTEM_INFO,
 };
 use windows::Win32::System::Threading::{
-    GetProcessHandleCount, GetProcessIoCounters, GetProcessTimes, OpenProcess, IO_COUNTERS,
-    PROCESS_QUERY_LIMITED_INFORMATION,
+    GetProcessHandleCount, GetProcessIoCounters, GetProcessTimes, GetSystemTimes, OpenProcess,
+    IO_COUNTERS, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 
 pub fn read_cpu() -> Result<RawCpuReading> {

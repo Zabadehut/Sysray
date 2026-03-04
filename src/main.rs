@@ -20,7 +20,7 @@ use anyhow::Result;
 use clap::Parser;
 use cli::{Cli, Commands};
 use collectors::{
-    CpuCollector, DiskCollector, LinuxCollector, LogsCollector, MemoryCollector, NetworkCollector,
+    CpuCollector, DiskCollector, LogsCollector, MemoryCollector, NetworkCollector,
     ProcessCollector, SystemCollector,
 };
 use config::Config;
@@ -35,6 +35,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
+
+#[cfg(target_os = "linux")]
+use collectors::LinuxCollector;
 
 #[tokio::main]
 async fn main() -> Result<()> {
