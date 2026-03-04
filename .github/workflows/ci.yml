@@ -154,6 +154,10 @@ jobs:
         if: ${{ runner.os != 'Windows' }}
         run: bash ./scripts/validate-schedule-flow.sh
 
+      - name: Validate Linux/macOS install bootstrap
+        if: ${{ runner.os != 'Windows' }}
+        run: bash ./scripts/validate-install-flow.sh
+
       - name: Validate Windows service flow
         if: ${{ runner.os == 'Windows' }}
         shell: pwsh
@@ -163,6 +167,11 @@ jobs:
         if: ${{ runner.os == 'Windows' }}
         shell: pwsh
         run: ./scripts/validate-schedule-flow.ps1
+
+      - name: Validate Windows install bootstrap
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: ./scripts/validate-install-flow.ps1
 
   cross-check:
     name: Cross Check - ubuntu-latest

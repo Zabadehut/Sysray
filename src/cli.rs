@@ -5,21 +5,19 @@ const AFTER_HELP: &str = "\
 Native automation examples:
 
   sysray install
-  sysray schedule install
+  sysray uninstall
   sysray maintenance daily-snapshot
   sysray maintenance prune --retention-days 15
   sysray maintenance archive --min-age-days 15 --max-age-days 60
+  sysray schedule install
 
 macOS launchd:
   sysray install
-  sysray schedule install
-  sysray service install
   launchctl list | grep com.zabadehut.sysray
 
 Windows Task Scheduler:
   sysray.exe install
-  sysray.exe schedule install
-  sysray.exe service install
+  sysray.exe uninstall
   schtasks /Query /TN Sysray /V /FO LIST
 
 Built-in service integration:
@@ -153,9 +151,24 @@ pub enum Commands {
         #[arg(long)]
         no_service: bool,
 
+        /// Copy the binary only and skip recurring schedule installation
+        #[arg(long)]
+        no_schedule: bool,
+
         /// Copy the binary but do not persist the install directory in the user PATH
         #[arg(long)]
         no_path: bool,
+    },
+
+    /// Remove the stable installed binary and native automation artifacts
+    Uninstall {
+        /// Keep the managed PATH entry in the user profile/session settings
+        #[arg(long)]
+        keep_path: bool,
+
+        /// Also remove Sysray-managed config and data directories
+        #[arg(long)]
+        purge_data: bool,
     },
 
     /// Run built-in maintenance tasks without external shell scripts

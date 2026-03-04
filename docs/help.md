@@ -18,7 +18,8 @@ Current commands:
 - `sysray watch --pid <PID>`
 - `sysray replay <FILE>`
 - `sysray explain <TERM> [--lang fr|en] [--audience beginner|expert]`
-- `sysray install [--no-service]`
+- `sysray install [--no-service] [--no-schedule] [--no-path]`
+- `sysray uninstall [--keep-path] [--purge-data]`
 - `sysray maintenance daily-snapshot`
 - `sysray maintenance prune [--directory <DIR>] [--retention-days <N>]`
 - `sysray maintenance archive [--source-dir <DIR>] [--archive-dir <DIR>] [--min-age-days <N>] [--max-age-days <N>]`
@@ -155,6 +156,7 @@ Examples:
 ```bash
 sysray install
 sysray install --no-service
+sysray install --no-schedule
 sysray install --no-path
 ```
 
@@ -165,8 +167,30 @@ Behavior:
 - Windows: `%LOCALAPPDATA%\Programs\Sysray\sysray.exe`
 - persists that install directory in the user `PATH` for future shells or sessions when possible
 - prints the immediate one-liner to use in the current shell when a restart is still needed
-- can immediately reinstall the native user service / scheduled task against that stable path
+- can immediately reinstall the native user service against that stable path
+- can immediately reinstall the native recurring schedule against that stable path
+- `--no-service` skips the service bootstrap
+- `--no-schedule` skips the recurring schedule bootstrap
 - `--no-path` skips persistent `PATH` changes
+
+### `uninstall`
+
+Examples:
+
+```bash
+sysray uninstall
+sysray uninstall --keep-path
+sysray uninstall --purge-data
+```
+
+Behavior:
+
+- removes the native recurring schedule
+- removes the native service / scheduled-task integration
+- removes the stable installed binary
+- removes the Sysray-managed `PATH` entry unless `--keep-path` is used
+- keeps config and collected data by default
+- `--purge-data` also removes Sysray-managed config and local data directories
 
 ### `maintenance`
 

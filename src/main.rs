@@ -101,8 +101,13 @@ async fn main() -> Result<()> {
         } => run_explain(&term, &lang, audience.as_deref()),
         Commands::Install {
             no_service,
+            no_schedule,
             no_path,
-        } => install::install_current_executable(!no_service, !no_path).await,
+        } => install::install_current_executable(!no_service, !no_schedule, !no_path).await,
+        Commands::Uninstall {
+            keep_path,
+            purge_data,
+        } => install::uninstall_current_executable(!keep_path, purge_data).await,
         Commands::Maintenance { action } => maintenance::run(action, &config).await,
         Commands::Schedule { action } => schedule::run_schedule(action).await,
         Commands::Service { action } => service::run_service(action).await,

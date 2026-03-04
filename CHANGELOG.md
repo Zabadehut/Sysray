@@ -6,6 +6,8 @@ The format is inspired by Keep a Changelog, and this project aims to follow Sema
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-03-04
+
 ### Added
 
 - Real terminal-derived README screenshots for `overview`, `pressure+`, `network+`, `jvm+`, and `disk+`
@@ -20,15 +22,20 @@ The format is inspired by Keep a Changelog, and this project aims to follow Sema
 - macOS and Windows remote filesystem inventory entries when the OS exposes network share mappings
 - Linux optional enrichers for `dmsetup`, `mdadm`, and `btrfs filesystem show` when available
 - CSV and Prometheus export of disk inventory categories and relation counts
+- `sysray install` now bootstraps the stable binary path plus native service and recurring schedule setup
+- Cross-platform `sysray uninstall` command to remove native automation, the stable installed binary, and the managed `PATH` entry
+- CI validation coverage for the full `install` -> `uninstall` bootstrap flow on Unix and Windows
 
 ### Changed
 
-- Project version advanced to `0.4.0`
+- Project version advanced to `0.5.7`
 - The TUI footer now reads the package version directly from Cargo metadata
 - `disk+` and detailed disk tables now surface filesystem, parentage, and stable-ref cues closer to an `lsblk`-style reading
 - The shared reference catalog now covers volume kind and logical stack terminology for the new disk inventory view
 - The `storage` preset is now presented as `io` in the TUI to avoid overlap with `disk+` and `inventory+`
 - The header now distinguishes `index:on`, `index:off`, and active search terms instead of showing `index:off` whenever no query is active
+- Linux repo install automation now reinstalls the recurring native schedule by default
+- Install and validation docs now describe the automatic bootstrap and teardown flows explicitly
 
 ## [0.4.0] - 2026-03-03
 

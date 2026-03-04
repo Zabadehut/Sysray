@@ -15,10 +15,11 @@ fi
 BUILD_IF_MISSING=1
 FORCE_BUILD=0
 REINSTALL_SERVICE=1
+REINSTALL_SCHEDULE=1
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/install-linux-user.sh [--no-build] [--force-build] [--no-service]
+Usage: ./scripts/install-linux-user.sh [--no-build] [--force-build] [--no-service] [--no-schedule]
 
 Installs the current Linux release build to ~/.local/bin/sysray.
 
@@ -26,6 +27,7 @@ Options:
   --no-build    Fail instead of running ./scripts/build-complete.sh when dist/ is missing
   --force-build Always run ./scripts/build-complete.sh before install
   --no-service  Skip sysray user service reinstall
+  --no-schedule Skip sysray recurring schedule reinstall
   -h, --help    Show this help message
 EOF
 }
@@ -40,6 +42,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-service)
       REINSTALL_SERVICE=0
+      ;;
+    --no-schedule)
+      REINSTALL_SCHEDULE=0
       ;;
     -h|--help)
       usage
@@ -101,6 +106,16 @@ if [[ "$REINSTALL_SERVICE" -eq 1 ]]; then
     systemctl --user status sysray.service --no-pager || true
   else
     echo "systemctl not available; skipped user service install" >&2
+  fi
+fi
+
+if [[ "$REINSTALL_SCHEDULE" -eq 1 ]]; then
+  if command -v systemctl >/dev/null 2>&1; then
+    "$DEST_BINARY" schedule uninstall || true
+    "$DEST_BINARY" schedule install
+    systemctl --user status sysray-snapshot.timer --no-pager || true
+  else
+    echo "systemctl not available; skipped recurring schedule install" >&2
   fi
 fi
 

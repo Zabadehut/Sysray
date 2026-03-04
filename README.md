@@ -5,7 +5,7 @@
 Sysray is a system observability engine written in Rust.
 It is being built as a modern replacement for legacy local monitoring tools such as NMON: single binary, low overhead, cross-platform by design, and extensible from day one.
 
-Current workspace version: `0.5.6`
+Current workspace version: `0.5.7`
 
 ## Positioning
 
@@ -123,8 +123,8 @@ sysray
 # Install current binary to a stable user path
 sysray install
 
-# Install native recurring tasks
-sysray schedule install
+# Remove the installed binary and native automation
+sysray uninstall
 
 # One-shot snapshot
 sysray snapshot --format json
@@ -180,7 +180,31 @@ This command:
 - installs the current executable to `~/.local/bin/sysray`
 - persists that install directory in the user `PATH` for future shells when possible
 - reinstalls the user service so it points to that stable binary path
+- reinstalls the native recurring schedule so daily maintenance points to that stable binary path
 - prints the one-line command to use immediately in the current shell if needed
+
+To skip one part of the bootstrap:
+
+- `sysray install --no-service`
+- `sysray install --no-schedule`
+- `sysray install --no-path`
+
+For removal of the stable install and native automation:
+
+```bash
+sysray uninstall
+sysray uninstall --keep-path
+sysray uninstall --purge-data
+```
+
+This command:
+
+- uninstalls the native recurring schedule
+- uninstalls the native user service
+- removes the stable installed binary
+- removes the managed `PATH` entry unless `--keep-path` is used
+- keeps config/data by default
+- removes Sysray-managed config/data too when `--purge-data` is used
 
 For native recurring automation without `crontab` scripts:
 
@@ -205,6 +229,7 @@ This script:
 - builds the release bundle if `dist/` is missing
 - installs the release binary to `~/.local/bin/sysray`
 - reinstalls the user service so it points to that stable binary path
+- reinstalls the recurring schedule so maintenance tasks also use that stable binary path
 
 For a fresh rebuild from the current workspace before install:
 
@@ -215,7 +240,7 @@ For a fresh rebuild from the current workspace before install:
 For a binary-only update without touching the service:
 
 ```bash
-./scripts/install-linux-user.sh --no-service
+./scripts/install-linux-user.sh --no-service --no-schedule
 ```
 
 Manual update flow:
@@ -234,7 +259,7 @@ Important for a blank machine:
 - it requires a Rust toolchain and usually leaves the binary under `~/.cargo/bin`
 - Cargo does not provide a portable post-install hook, so Sysray cannot fix your `PATH` during `cargo install` itself
 - after `cargo install`, run `~/.cargo/bin/sysray install` on Linux/macOS or `%USERPROFILE%\.cargo\bin\sysray.exe install` on Windows once to move to the stable path and persist that path for future sessions
-- after a release-binary install, prefer `sysray install` plus `sysray service install`
+- after a release-binary install, prefer `sysray install`
 - on Linux, package formats such as `.rpm` or a standalone release tarball are a better first-run story than requiring Rust
 - real `systemd --user` runtime validation should be done on a dedicated Linux environment with a proper user session, not faked inside a generic hosted CI runner
 

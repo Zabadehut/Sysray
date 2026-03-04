@@ -1,12 +1,11 @@
-use crate::cli::ServiceAction;
+use crate::cli::{ScheduleAction, ServiceAction};
+use crate::schedule;
 use crate::service;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[cfg(target_os = "windows")]
-use anyhow::bail;
 #[cfg(target_os = "windows")]
 use std::process::Command;
 
@@ -15,6 +14,7 @@ const PATH_BLOCK_END: &str = "# <<< sysray path <<<";
 
 pub async fn install_current_executable(
     install_service: bool,
+    install_schedule: bool,
     install_path_entry: bool,
 ) -> Result<()> {
     let source = env::current_exe().context("Failed to resolve current executable path")?;
@@ -41,8 +41,20 @@ pub async fn install_current_executable(
         ensure_path_registration(destination.parent().unwrap_or(Path::new("")))?;
     }
 
+    let mut failures = Vec::new();
+
     if install_service {
-        service::run_service_with_exe(ServiceAction::Install, Some(destination.as_path())).await?;
+        if let Err(error) =
+            service::run_service_with_exe(ServiceAction::Install, Some(destination.as_path())).await
+        {
+            failures.push(format!("service install failed: {error:#}"));
+        }
+    }
+
+    if install_schedule {
+        if let Err(error) = schedule::run_schedule(ScheduleAction::Install).await {
+            failures.push(format!("schedule install failed: {error:#}"));
+        }
     }
 
     if !path_contains(destination.parent().unwrap_or(Path::new(""))) {
@@ -51,6 +63,59 @@ pub async fn install_current_executable(
             destination.parent().unwrap_or(Path::new("")).display()
         );
         print_current_session_hint(destination.parent().unwrap_or(Path::new("")));
+    }
+
+    if !failures.is_empty() {
+        bail!(failures.join("\n"));
+    }
+
+    Ok(())
+}
+
+pub async fn uninstall_current_executable(remove_path_entry: bool, purge_data: bool) -> Result<()> {
+    let destination = install_path()?;
+    let install_dir = destination.parent().unwrap_or(Path::new("")).to_path_buf();
+    let mut failures = Vec::new();
+
+    if let Err(error) = schedule::run_schedule(ScheduleAction::Uninstall).await {
+        failures.push(format!("schedule uninstall failed: {error:#}"));
+    }
+
+    if let Err(error) = service::run_service(ServiceAction::Uninstall).await {
+        failures.push(format!("service uninstall failed: {error:#}"));
+    }
+
+    if purge_data {
+        if let Err(error) = purge_managed_data() {
+            failures.push(format!("data purge failed: {error:#}"));
+        }
+    }
+
+    if destination.exists() {
+        if let Err(error) = remove_installed_binary(&destination) {
+            failures.push(format!("binary removal failed: {error:#}"));
+        }
+    }
+
+    if let Err(error) = cleanup_install_dir_if_empty(&install_dir) {
+        failures.push(format!("install-dir cleanup failed: {error:#}"));
+    }
+
+    if remove_path_entry {
+        if let Err(error) = remove_path_registration(&install_dir) {
+            failures.push(format!("PATH removal failed: {error:#}"));
+        }
+    }
+
+    if !path_contains(&install_dir) {
+        println!(
+            "Current session PATH does not include {}",
+            install_dir.display()
+        );
+    }
+
+    if !failures.is_empty() {
+        bail!(failures.join("\n"));
     }
 
     Ok(())
@@ -101,6 +166,33 @@ fn ensure_executable(path: &Path) -> Result<()> {
     Ok(())
 }
 
+fn remove_installed_binary(path: &Path) -> Result<()> {
+    #[cfg(target_os = "windows")]
+    {
+        windows::remove_installed_binary(path)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        fs::remove_file(path).with_context(|| format!("Failed to remove {}", path.display()))?;
+        println!("Removed installed binary: {}", path.display());
+        Ok(())
+    }
+}
+
+fn cleanup_install_dir_if_empty(dir: &Path) -> Result<()> {
+    if dir.as_os_str().is_empty() || !dir.exists() {
+        return Ok(());
+    }
+
+    if fs::read_dir(dir)?.next().is_none() {
+        fs::remove_dir(dir)?;
+        println!("Removed empty install directory: {}", dir.display());
+    }
+
+    Ok(())
+}
+
 fn ensure_path_registration(dir: &Path) -> Result<()> {
     #[cfg(target_os = "windows")]
     {
@@ -116,6 +208,24 @@ fn ensure_path_registration(dir: &Path) -> Result<()> {
         println!("Current session PATH already contains {}", dir.display());
     }
 
+    Ok(())
+}
+
+fn remove_path_registration(dir: &Path) -> Result<()> {
+    #[cfg(target_os = "windows")]
+    {
+        windows::remove_user_path(dir)?;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        unix::remove_user_path(dir)?;
+    }
+
+    println!(
+        "Removed managed PATH entry for future sessions: {}",
+        dir.display()
+    );
     Ok(())
 }
 
@@ -135,6 +245,61 @@ fn print_current_session_hint(dir: &Path) {
             dir.display()
         );
     }
+}
+
+fn purge_managed_data() -> Result<()> {
+    for path in managed_paths_to_purge()? {
+        if !path.exists() {
+            continue;
+        }
+
+        if path.is_dir() {
+            fs::remove_dir_all(&path)
+                .with_context(|| format!("Failed to remove {}", path.display()))?;
+        } else {
+            fs::remove_file(&path)
+                .with_context(|| format!("Failed to remove {}", path.display()))?;
+        }
+        println!("Removed managed path: {}", path.display());
+    }
+
+    Ok(())
+}
+
+fn managed_paths_to_purge() -> Result<Vec<PathBuf>> {
+    #[cfg(target_os = "linux")]
+    {
+        let home = home_dir()?;
+        Ok(vec![
+            home.join(".config").join("sysray"),
+            home.join(".local").join("share").join("sysray"),
+        ])
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let home = home_dir()?;
+        Ok(vec![home.join("Library/Application Support/Sysray")])
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let app_data = env::var_os("APPDATA")
+            .map(PathBuf::from)
+            .context("APPDATA is not set")?;
+        Ok(vec![app_data.join("Sysray")])
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    {
+        Ok(Vec::new())
+    }
+}
+
+fn home_dir() -> Result<PathBuf> {
+    env::var_os("HOME")
+        .map(PathBuf::from)
+        .context("HOME is not set")
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -173,6 +338,41 @@ mod unix {
             );
         } else {
             println!("Persisted PATH entry for future shells: {}", dir.display());
+            for file in updated_files {
+                println!("Updated shell profile: {}", file.display());
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn remove_user_path(dir: &Path) -> Result<()> {
+        let home = env::var_os("HOME")
+            .map(PathBuf::from)
+            .context("HOME is not set")?;
+        let shell = env::var("SHELL").unwrap_or_default();
+        let mut updated_files = Vec::new();
+
+        for file in [
+            home.join(".profile"),
+            home.join(".bash_profile"),
+            home.join(".bashrc"),
+            home.join(".zshrc"),
+            home.join(".zprofile"),
+        ] {
+            if should_manage_unix_file(&file, &shell) && remove_managed_path_file(&file)? {
+                updated_files.push(file);
+            }
+        }
+
+        let fish_conf = home.join(".config/fish/conf.d/sysray_path.fish");
+        if should_manage_fish(&fish_conf, &shell) && remove_managed_path_file(&fish_conf)? {
+            updated_files.push(fish_conf);
+        }
+
+        if updated_files.is_empty() {
+            println!("No managed PATH entry found for {}", dir.display());
+        } else {
             for file in updated_files {
                 println!("Updated shell profile: {}", file.display());
             }
@@ -226,6 +426,25 @@ mod unix {
         Ok(true)
     }
 
+    fn remove_managed_path_file(path: &Path) -> Result<bool> {
+        if !path.exists() {
+            return Ok(false);
+        }
+
+        let content = fs::read_to_string(path).unwrap_or_default();
+        let updated = remove_managed_block(&content);
+        if updated == content {
+            return Ok(false);
+        }
+
+        if updated.is_empty() {
+            fs::remove_file(path)?;
+        } else {
+            fs::write(path, updated)?;
+        }
+        Ok(true)
+    }
+
     fn unix_path_block(dir: &Path) -> String {
         format!(
             "{PATH_BLOCK_START}\nexport PATH=\"{}:$PATH\"\n{PATH_BLOCK_END}\n",
@@ -267,6 +486,29 @@ mod unix {
         }
     }
 
+    fn remove_managed_block(content: &str) -> String {
+        match (content.find(PATH_BLOCK_START), content.find(PATH_BLOCK_END)) {
+            (Some(start), Some(end)) if start <= end => {
+                let after_end = end + PATH_BLOCK_END.len();
+                let suffix = content[after_end..]
+                    .strip_prefix('\n')
+                    .unwrap_or(&content[after_end..]);
+                let prefix = content[..start].trim_end_matches('\n');
+
+                if prefix.is_empty() && suffix.is_empty() {
+                    String::new()
+                } else if prefix.is_empty() {
+                    suffix.to_string()
+                } else if suffix.is_empty() {
+                    format!("{prefix}\n")
+                } else {
+                    format!("{prefix}\n{suffix}")
+                }
+            }
+            _ => content.to_string(),
+        }
+    }
+
     fn suffix_if_needed(suffix: &str) -> &str {
         if suffix.is_empty() {
             ""
@@ -299,6 +541,20 @@ mod unix {
             assert!(!updated.contains("\nold\n"));
             assert!(updated.contains("export PATH=\"/new:$PATH\""));
             assert!(updated.contains("export FOO=bar"));
+        }
+
+        #[test]
+        fn remove_managed_block_preserves_surrounding_content() {
+            let content = "export FOO=bar\n# >>> sysray path >>>\nold\n# <<< sysray path <<<\nexport BAR=baz\n";
+            let updated = remove_managed_block(content);
+            assert_eq!(updated, "export FOO=bar\nexport BAR=baz\n");
+        }
+
+        #[test]
+        fn remove_managed_block_returns_empty_when_block_is_only_content() {
+            let content = "# >>> sysray path >>>\nold\n# <<< sysray path <<<\n";
+            let updated = remove_managed_block(content);
+            assert!(updated.is_empty());
         }
     }
 }
@@ -350,6 +606,81 @@ $newPath = if ([string]::IsNullOrWhiteSpace($current)) { $entry } else { "$curre
         }
 
         println!("Persisted PATH entry for future sessions: {}", dir);
+        Ok(())
+    }
+
+    pub fn remove_user_path(dir: &Path) -> Result<()> {
+        let dir = dir.to_string_lossy();
+        let script = r#"
+$entry = [System.IO.Path]::GetFullPath($args[0])
+$current = [Environment]::GetEnvironmentVariable('Path', 'User')
+if (-not $current) {
+    exit 0
+}
+$parts = $current -split ';' | Where-Object { $_ -and $_.Trim() -ne '' }
+$kept = New-Object System.Collections.Generic.List[string]
+foreach ($part in $parts) {
+    try {
+        $normalized = [System.IO.Path]::GetFullPath($part)
+    } catch {
+        $normalized = $part
+    }
+    if ($normalized -ne $entry) {
+        $kept.Add($part)
+    }
+}
+[Environment]::SetEnvironmentVariable('Path', ($kept -join ';'), 'User')
+"#;
+
+        let status = Command::new("powershell.exe")
+            .args([
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                script,
+                &dir,
+            ])
+            .status()
+            .context("Failed to remove the user PATH entry through PowerShell")?;
+
+        if !status.success() {
+            bail!("Failed to remove {} from the user PATH", dir);
+        }
+
+        Ok(())
+    }
+
+    pub fn remove_installed_binary(path: &Path) -> Result<()> {
+        let path = path.to_string_lossy();
+        let script = r#"
+$target = [System.IO.Path]::GetFullPath($args[0])
+$dir = [System.IO.Path]::GetDirectoryName($target)
+$job = "Start-Sleep -Milliseconds 750; if (Test-Path -LiteralPath '$target') { Remove-Item -LiteralPath '$target' -Force -ErrorAction SilentlyContinue }; if ($dir -and (Test-Path -LiteralPath $dir)) { try { Remove-Item -LiteralPath $dir -Force -ErrorAction Stop } catch {} }"
+Start-Process -FilePath "powershell.exe" -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-Command', $job) -WindowStyle Hidden
+"#;
+
+        let status = Command::new("powershell.exe")
+            .args([
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                script,
+                &path,
+            ])
+            .status()
+            .context("Failed to schedule installed binary removal through PowerShell")?;
+
+        if !status.success() {
+            bail!("Failed to schedule removal of {}", path);
+        }
+
+        println!("Scheduled installed binary removal: {}", path);
         Ok(())
     }
 }

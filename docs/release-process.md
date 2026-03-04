@@ -61,4 +61,4 @@ For local Linux installs, prefer the stable user-level install script:
 ./scripts/install-linux-user.sh
 ```
 
-It installs the bundled release binary to `~/.local/bin/sysray` and reinstalls the user service against that path, which avoids services being pinned to `target/debug/sysray`.
+It installs the bundled release binary to `~/.local/bin/sysray` and reinstalls both the user service and recurring schedule against that path, which avoids automation being pinned to `target/debug/sysray`.

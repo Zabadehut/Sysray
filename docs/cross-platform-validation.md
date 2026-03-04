@@ -61,6 +61,8 @@ Recommended workflow coverage:
 - `cargo test --locked`
 - `cargo run --locked -- snapshot --format json`
 - `cargo run --locked -- snapshot --format prometheus`
+- native validation of `sysray install` as the full bootstrap path
+- native validation of `sysray uninstall` as the teardown path
 - native validation of `sysray service install|status|uninstall`
 - native validation of `sysray schedule install|status|uninstall`
 - Ubuntu-only linting and cross-target `cargo check`
