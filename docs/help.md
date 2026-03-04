@@ -155,6 +155,7 @@ Examples:
 ```bash
 sysray install
 sysray install --no-service
+sysray install --no-path
 ```
 
 Behavior:
@@ -162,7 +163,10 @@ Behavior:
 - installs the running executable to a stable per-user path
 - Linux and macOS: `~/.local/bin/sysray`
 - Windows: `%LOCALAPPDATA%\Programs\Sysray\sysray.exe`
+- persists that install directory in the user `PATH` for future shells or sessions when possible
+- prints the immediate one-liner to use in the current shell when a restart is still needed
 - can immediately reinstall the native user service / scheduled task against that stable path
+- `--no-path` skips persistent `PATH` changes
 
 ### `maintenance`
 

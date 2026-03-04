@@ -152,6 +152,10 @@ pub enum Commands {
         /// Copy the binary only and skip service installation
         #[arg(long)]
         no_service: bool,
+
+        /// Copy the binary but do not persist the install directory in the user PATH
+        #[arg(long)]
+        no_path: bool,
     },
 
     /// Run built-in maintenance tasks without external shell scripts

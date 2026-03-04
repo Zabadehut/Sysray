@@ -178,8 +178,9 @@ sysray install
 This command:
 
 - installs the current executable to `~/.local/bin/sysray`
+- persists that install directory in the user `PATH` for future shells when possible
 - reinstalls the user service so it points to that stable binary path
-- warns when `~/.local/bin` is not in `PATH`
+- prints the one-line command to use immediately in the current shell if needed
 
 For native recurring automation without `crontab` scripts:
 
@@ -231,6 +232,8 @@ Important for a blank machine:
 
 - `cargo install sysray` is a developer bootstrap path, not the recommended end-user install path
 - it requires a Rust toolchain and usually leaves the binary under `~/.cargo/bin`
+- Cargo does not provide a portable post-install hook, so Sysray cannot fix your `PATH` during `cargo install` itself
+- after `cargo install`, run `~/.cargo/bin/sysray install` on Linux/macOS or `%USERPROFILE%\.cargo\bin\sysray.exe install` on Windows once to move to the stable path and persist that path for future sessions
 - after a release-binary install, prefer `sysray install` plus `sysray service install`
 - on Linux, package formats such as `.rpm` or a standalone release tarball are a better first-run story than requiring Rust
 - real `systemd --user` runtime validation should be done on a dedicated Linux environment with a proper user session, not faked inside a generic hosted CI runner

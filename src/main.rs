@@ -99,7 +99,10 @@ async fn main() -> Result<()> {
             lang,
             audience,
         } => run_explain(&term, &lang, audience.as_deref()),
-        Commands::Install { no_service } => install::install_current_executable(!no_service).await,
+        Commands::Install {
+            no_service,
+            no_path,
+        } => install::install_current_executable(!no_service, !no_path).await,
         Commands::Maintenance { action } => maintenance::run(action, &config).await,
         Commands::Schedule { action } => schedule::run_schedule(action).await,
         Commands::Service { action } => service::run_service(action).await,

@@ -46,6 +46,7 @@ These commands reflect the current CLI. Raw file rotation, retention, and closed
 ### Linux
 
 ```bash
+~/.cargo/bin/sysray install   # if you bootstrapped with cargo on a blank host
 sysray
 sysray install
 sysray schedule install
@@ -57,6 +58,7 @@ sysray service install
 ### macOS
 
 ```bash
+~/.cargo/bin/sysray install   # if you bootstrapped with cargo on a blank host
 sysray
 sysray install
 sysray schedule install
@@ -69,6 +71,7 @@ launchctl list com.zabadehut.sysray
 ### Windows
 
 ```powershell
+%USERPROFILE%\.cargo\bin\sysray.exe install   # if you bootstrapped with cargo on a blank host
 sysray.exe
 sysray.exe install
 sysray.exe schedule install
