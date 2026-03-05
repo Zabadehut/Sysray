@@ -6,6 +6,21 @@ The format is inspired by Keep a Changelog, and this project aims to follow Sema
 
 ## [Unreleased]
 
+## [0.5.8] - 2026-03-05
+
+### Added
+
+- Cross-OS capability-aware metric flags from platform readers to collectors and TUI rendering
+- Portable `load 1/5/15` derived demand smoothing on Windows with explicit `native` vs `derived` source semantics
+
+### Changed
+
+- TUI metric cards now show `n/a` instead of misleading zero values when an OS does not expose a given metric family
+- Gauge warning style now follows the active theme instead of using a hard-coded color
+- macOS command collection now forces stable `C` locale parsing and uses fallback absolute command paths for service contexts
+- Linux schedule timers now use portable `OnCalendar=*-*-* HH:MM:SS` expressions
+- Project version advanced to `0.5.8`
+
 ## [0.5.7] - 2026-03-04
 
 ### Added
